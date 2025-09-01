@@ -1,0 +1,13 @@
+{
+  "name": "jj-sharepoint-bot",
+  "version": "1.0.0",
+  "description": "Skeleton Teams bot for SharePoint integration",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "botbuilder": "^4.22.2",
+    "restify": "^11.1.0"
+  }
+}
