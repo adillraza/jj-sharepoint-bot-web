@@ -27,12 +27,14 @@ const conversationState = new ConversationState(memoryStorage);
 adapter.onTurnError = async (context, error) => {
     console.error(`\n [onTurnError] Unhandled error: ${error}`);
     console.error('Error details:', error.message);
-    console.error('Error stack:', error.stack);
     
-    try {
-        await context.sendActivity('Oops! Something went wrong.');
-    } catch (sendError) {
-        console.error('Failed to send error message:', sendError);
+    // Only try to send error message if it's a real error, not a network issue
+    if (error.message && !error.message.includes('RestError')) {
+        try {
+            await context.sendActivity('Oops! Something went wrong.');
+        } catch (sendError) {
+            console.error('Failed to send error message:', sendError.message);
+        }
     }
 };
 
@@ -64,8 +66,11 @@ async function handleMessage(context) {
             console.log('Response sent successfully');
         }
     } catch (error) {
-        console.error('Error in handleMessage:', error);
-        throw error; // Re-throw to trigger onTurnError
+        console.error('Error in handleMessage:', error.message);
+        // Don't re-throw network errors, just log them
+        if (!error.message?.includes('RestError')) {
+            throw error;
+        }
     }
 }
 
