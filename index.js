@@ -76,19 +76,16 @@ async function handleMessage(context) {
             const userMessage = context.activity.text || '';
             console.log(`User said: ${userMessage}`);
 
-            const response = `You said: ${userMessage}`;
-            console.log(`Bot responding: ${response}`);
-            console.log(`Sending to conversation: ${context.activity.conversation?.id}`);
-            console.log(`Channel: ${context.activity.channelId}`);
+            console.log(`About to send response...`);
             
-            // Try explicit message activity format
-            const messageActivity = {
-                type: 'message',
-                text: response
-            };
-            
-            const result = await context.sendActivity(messageActivity);
-            console.log('✅ Response sent successfully, result:', JSON.stringify(result, null, 2));
+            // Try the simplest possible response
+            try {
+                await context.sendActivity('Hello! I received your message.');
+                console.log('✅ Simple response sent successfully');
+            } catch (sendError) {
+                console.error('❌ Failed to send simple response:', sendError.message);
+                console.error('Full error:', sendError);
+            }
         } else {
             const response = `[${context.activity.type} event detected]`;
             console.log(`Bot responding: ${response}`);
@@ -96,17 +93,31 @@ async function handleMessage(context) {
             console.log('Response sent successfully');
         }
     } catch (error) {
-        console.error('Error in handleMessage:', error.message);
-        // Don't re-throw network errors, just log them
-        if (!error.message?.includes('RestError')) {
-            throw error;
-        }
+        console.error('❌ Error in handleMessage:', error.message);
+        console.error('Error type:', error.constructor.name);
+        console.error('Error details:', error);
+        // Don't re-throw any errors - just log them
     }
 }
 
-// Entry point: async handler for Restify
-server.post('/api/messages', async (req, res) => {
-    await adapter.processActivity(req, res, async (context) => {
-        await handleMessage(context);
+// Replace the existing route with this:
+server.post('/api/messages', (req, res) => {
+    adapter.processActivity(req, res, async (context) => {
+      console.log("===== Incoming Activity =====");
+      console.log(JSON.stringify(context.activity, null, 2));
+  
+      if (context.activity.type === 'message') {
+        const text = context.activity.text || '';
+        console.log(`Sending echo to conversation: ${context.activity.conversation?.id}`);
+        try {
+          await context.sendActivity(`You said: ${text}`);
+        } catch (err) {
+          console.error('[sendActivity error]', err);
+        }
+      } else {
+        // Don’t reply to typing/other events to keep the connector happy
+        console.log(`Non-message activity (${context.activity.type}) received; no reply sent.`);
+      }
     });
-});
+  });
+  
