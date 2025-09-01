@@ -15,11 +15,17 @@ console.log(`MicrosoftAppPassword present: ${MICROSOFT_APP_PASSWORD ? 'YES' : 'N
 console.log(`All Microsoft env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
 console.log('==================');
 
-// Create adapter
+// Create adapter - allow empty credentials for development
 const adapter = new BotFrameworkAdapter({
-    appId: MICROSOFT_APP_ID,
-    appPassword: MICROSOFT_APP_PASSWORD
+    appId: MICROSOFT_APP_ID || undefined,
+    appPassword: MICROSOFT_APP_PASSWORD || undefined
 });
+
+// Log adapter configuration
+console.log('Adapter created with:');
+console.log(`- appId: ${MICROSOFT_APP_ID ? 'SET' : 'EMPTY (development mode)'}`);
+console.log(`- appPassword: ${MICROSOFT_APP_PASSWORD ? 'SET' : 'EMPTY (development mode)'}`);
+console.log('===================');
 
 // State management
 const memoryStorage = new MemoryStorage();
