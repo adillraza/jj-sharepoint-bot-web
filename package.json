@@ -6,8 +6,8 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "botbuilder": "^4.20.0",
     "restify": "^11.1.0",
+    "botbuilder": "^4.22.3",
     "dotenv": "^16.4.5"
   }
 }
