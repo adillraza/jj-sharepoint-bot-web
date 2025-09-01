@@ -2,13 +2,15 @@
 const restify = require('restify');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
 
-// Environment variables
-const MICROSOFT_APP_ID = process.env.MicrosoftAppId || "";
-const MICROSOFT_APP_PASSWORD = process.env.MicrosoftAppPassword || "";
+// Environment variables - try multiple possible names
+const MICROSOFT_APP_ID = process.env.MicrosoftAppId || process.env.MicrosoftAppid || "";
+const MICROSOFT_APP_PASSWORD = process.env.MicrosoftAppPassword || process.env.MicrosoftApppassword || "";
 
 console.log('=== Bot Startup ===');
 console.log(`MicrosoftAppId present: ${MICROSOFT_APP_ID ? 'YES' : 'NO'}`);
+console.log(`MicrosoftAppId value: ${MICROSOFT_APP_ID ? MICROSOFT_APP_ID.substring(0, 8) + '...' : 'EMPTY'}`);
 console.log(`MicrosoftAppPassword present: ${MICROSOFT_APP_PASSWORD ? 'YES' : 'NO'}`);
+console.log(`All env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
 console.log('==================');
 
 // Create adapter
