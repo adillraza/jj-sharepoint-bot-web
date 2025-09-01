@@ -97,8 +97,8 @@ class EchoBot extends ActivityHandler {
 const bot = new EchoBot();
 
 // ----- Messaging endpoint (async handler; no "next") -----
-server.post('/api/messages', (req, res) => {
-  adapter.processActivity(req, res, async (context) => {
+server.post('/api/messages', async (req, res) => {
+  await adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
     await conversationState.saveChanges(context, false);
   });
