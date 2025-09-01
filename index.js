@@ -49,6 +49,19 @@ adapter.onTurnError = async (context, error) => {
 // Create server
 const server = restify.createServer();
 const PORT = process.env.PORT || 3978;
+// Add a simple health endpoint to verify deployment
+server.get('/', (req, res, next) => {
+    const status = {
+        status: 'Bot is running',
+        timestamp: new Date().toISOString(),
+        nodeVersion: process.version,
+        appId: MICROSOFT_APP_ID ? 'SET' : 'MISSING',
+        appPassword: MICROSOFT_APP_PASSWORD ? 'SET' : 'MISSING'
+    };
+    res.send(200, status);
+    return next();
+});
+
 server.listen(PORT, () => {
     console.log(`\nBot Started, listening on http://localhost:${PORT}`);
 });
@@ -68,8 +81,14 @@ async function handleMessage(context) {
             console.log(`Sending to conversation: ${context.activity.conversation?.id}`);
             console.log(`Channel: ${context.activity.channelId}`);
             
-            const result = await context.sendActivity(response);
-            console.log('✅ Response sent successfully, result:', result);
+            // Try explicit message activity format
+            const messageActivity = {
+                type: 'message',
+                text: response
+            };
+            
+            const result = await context.sendActivity(messageActivity);
+            console.log('✅ Response sent successfully, result:', JSON.stringify(result, null, 2));
         } else {
             const response = `[${context.activity.type} event detected]`;
             console.log(`Bot responding: ${response}`);
