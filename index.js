@@ -43,7 +43,7 @@ server.listen(PORT, () => {
 
 // IMPORTANT: Do NOT call res.send() / res.end() / next() here.
 // Bot Framework will complete the response.
-server.post('/api/messages', (req, res) => {
+server.post('/api/messages', async (req, res) => {
   adapter.processActivity(req, res, async (context) => {
     await bot.run(context);
   });
