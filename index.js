@@ -100,9 +100,10 @@ async function handleMessage(context) {
     }
 }
 
-// Replace the existing route with this:
-server.post('/api/messages', (req, res) => {
-    adapter.processActivity(req, res, async (context) => {
+// Entry point: async handler for Restify (VERSION 2)
+server.post('/api/messages', async (req, res) => {
+    console.log('🚀 [VERSION 2] Processing /api/messages request...');
+    await adapter.processActivity(req, res, async (context) => {
       console.log("===== Incoming Activity =====");
       console.log(JSON.stringify(context.activity, null, 2));
   
@@ -111,13 +112,14 @@ server.post('/api/messages', (req, res) => {
         console.log(`Sending echo to conversation: ${context.activity.conversation?.id}`);
         try {
           await context.sendActivity(`You said: ${text}`);
+          console.log('✅ Response sent successfully!');
         } catch (err) {
-          console.error('[sendActivity error]', err);
+          console.error('❌ [sendActivity error]', err);
         }
       } else {
-        // Don’t reply to typing/other events to keep the connector happy
+        // Don't reply to typing/other events to keep the connector happy
         console.log(`Non-message activity (${context.activity.type}) received; no reply sent.`);
       }
     });
-  });
+});
   
