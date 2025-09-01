@@ -7,10 +7,12 @@ const MICROSOFT_APP_ID = process.env.MicrosoftAppId || process.env.MicrosoftAppi
 const MICROSOFT_APP_PASSWORD = process.env.MicrosoftAppPassword || process.env.MicrosoftApppassword || "";
 
 console.log('=== Bot Startup ===');
+console.log(`Node.js version: ${process.version}`);
+console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`MicrosoftAppId present: ${MICROSOFT_APP_ID ? 'YES' : 'NO'}`);
 console.log(`MicrosoftAppId value: ${MICROSOFT_APP_ID ? MICROSOFT_APP_ID.substring(0, 8) + '...' : 'EMPTY'}`);
 console.log(`MicrosoftAppPassword present: ${MICROSOFT_APP_PASSWORD ? 'YES' : 'NO'}`);
-console.log(`All env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
+console.log(`All Microsoft env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
 console.log('==================');
 
 // Create adapter
@@ -57,8 +59,11 @@ async function handleMessage(context) {
 
             const response = `You said: ${userMessage}`;
             console.log(`Bot responding: ${response}`);
-            await context.sendActivity(response);
-            console.log('Response sent successfully');
+            console.log(`Sending to conversation: ${context.activity.conversation?.id}`);
+            console.log(`Channel: ${context.activity.channelId}`);
+            
+            const result = await context.sendActivity(response);
+            console.log('✅ Response sent successfully, result:', result);
         } else {
             const response = `[${context.activity.type} event detected]`;
             console.log(`Bot responding: ${response}`);
