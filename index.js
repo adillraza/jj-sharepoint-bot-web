@@ -24,7 +24,14 @@ const conversationState = new ConversationState(memoryStorage);
 // Catch-all for errors
 adapter.onTurnError = async (context, error) => {
     console.error(`\n [onTurnError] Unhandled error: ${error}`);
-    await context.sendActivity('Oops! Something went wrong.');
+    console.error('Error details:', error.message);
+    console.error('Error stack:', error.stack);
+    
+    try {
+        await context.sendActivity('Oops! Something went wrong.');
+    } catch (sendError) {
+        console.error('Failed to send error message:', sendError);
+    }
 };
 
 // Create server
@@ -36,16 +43,27 @@ server.listen(PORT, () => {
 
 // Bot logic
 async function handleMessage(context) {
-    console.log("===== Incoming Activity =====");
-    console.log(JSON.stringify(context.activity, null, 2));
+    try {
+        console.log("===== Incoming Activity =====");
+        console.log(JSON.stringify(context.activity, null, 2));
 
-    if (context.activity.type === 'message') {
-        const userMessage = context.activity.text;
-        console.log(`User said: ${userMessage}`);
+        if (context.activity.type === 'message') {
+            const userMessage = context.activity.text || '';
+            console.log(`User said: ${userMessage}`);
 
-        await context.sendActivity(`You said: ${userMessage}`);
-    } else {
-        await context.sendActivity(`[${context.activity.type} event detected]`);
+            const response = `You said: ${userMessage}`;
+            console.log(`Bot responding: ${response}`);
+            await context.sendActivity(response);
+            console.log('Response sent successfully');
+        } else {
+            const response = `[${context.activity.type} event detected]`;
+            console.log(`Bot responding: ${response}`);
+            await context.sendActivity(response);
+            console.log('Response sent successfully');
+        }
+    } catch (error) {
+        console.error('Error in handleMessage:', error);
+        throw error; // Re-throw to trigger onTurnError
     }
 }
 
