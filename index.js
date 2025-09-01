@@ -1,129 +1,105 @@
-const restify = require('restify');
-const {
-  CloudAdapter,
-  ConfigurationServiceClientCredentialFactory,
-  createBotFrameworkAuthenticationFromConfiguration,
-  ActivityTypes,
-  StatusCodes,
-  TurnContext,
-  CardFactory
-} = require('botbuilder');
-const { graphGet } = require('./graph');
+// index.js
+// Minimal Bot Framework bot running on Restify with verbose logging
 
+const restify = require('restify');
+const { BotFrameworkAdapter, MemoryStorage, ConversationState, ActivityHandler } = require('botbuilder');
 require('dotenv').config();
 
-// ---- Config
-const APP_ID = process.env.MicrosoftAppId || '';
-const APP_PASSWORD = process.env.MicrosoftAppPassword || '';
-const APP_TENANT_ID = process.env.MicrosoftAppTenantId || '';
-const APP_TYPE = process.env.MicrosoftAppType || 'SingleTenant';
-const CONNECTION_NAME = process.env.ConnectionName || 'GraphConnection';
+// ----- Basic startup logging (helps in Log Stream) -----
+console.log('Starting bot...');
+console.log(`Node.js: ${process.version}`);
+console.log(`PORT (if provided by Azure): ${process.env.PORT || '(none)'}\n`);
 
-console.log('[startup] MicrosoftAppId present:', !!APP_ID);
-console.log('[startup] MicrosoftAppTenantId present:', !!APP_TENANT_ID);
-console.log('[startup] ConnectionName:', CONNECTION_NAME);
+const appId = process.env.MicrosoftAppId || '';
+const appPassword = process.env.MicrosoftAppPassword || '';
 
-// ---- Auth + Adapter
-const credentialsFactory = new ConfigurationServiceClientCredentialFactory({
-  MicrosoftAppId: APP_ID,
-  MicrosoftAppPassword: APP_PASSWORD,
-  MicrosoftAppTenantId: APP_TENANT_ID,
-  MicrosoftAppType: APP_TYPE
+console.log('Startup credential check:');
+console.log(`  MicrosoftAppId present: ${appId ? 'yes' : 'NO'}`);
+console.log(`  MicrosoftAppPassword present: ${appPassword ? 'yes' : 'NO'}`);
+console.log('');
+
+// ----- Restify server -----
+const server = restify.createServer();
+server.use(restify.plugins.bodyParser()); // important for /api/messages
+server.listen(process.env.PORT || 3978, () => {
+  console.log(`${server.name} listening on ${server.url}`);
 });
-const botFrameworkAuthentication =
-  createBotFrameworkAuthenticationFromConfiguration(null, credentialsFactory);
-const adapter = new CloudAdapter(botFrameworkAuthentication);
 
+// Health check (use correct Restify signature: (req, res, next))
+server.get('/', (req, res, next) => {
+  res.send(200, { status: 'Bot is running', time: new Date().toISOString() });
+  return next();
+});
+
+// ----- Adapter -----
+const adapter = new BotFrameworkAdapter({
+  appId,
+  appPassword
+});
+
+// Catch-all for errors
 adapter.onTurnError = async (context, error) => {
-  console.error('[onTurnError]', error);
-  await context.sendActivity('Sorry—something went wrong.');
+  console.error('\n[onTurnError]', error);
+  try { await context.sendActivity('Oops, something went wrong.'); } catch {}
 };
 
-// ---- Bot logic
-async function handleTurn(context) {
-  if (context.activity.type === ActivityTypes.Message) {
-    const text = (context.activity.text || '').trim().toLowerCase();
+// ----- State (in-memory for now) -----
+const conversationState = new ConversationState(new MemoryStorage());
 
-    if (text === 'signin' || text === 'login' || text === 'connect') {
-      // ask user to sign-in
-      const signInLink = await adapter.getSignInLink(context, CONNECTION_NAME);
-      await context.sendActivity({
-        attachments: [
-          CardFactory.signinCard(
-            'Sign in to Microsoft 365',
-            signInLink,
-            'Continue'
-          )
-        ]
-      });
-      return;
-    }
+// ----- Bot implementation -----
+class EchoBot extends ActivityHandler {
+  constructor() {
+    super();
 
-    if (text === 'recent' || text === 'files') {
-      // try to get token
-      const token = await adapter.getUserToken(context, CONNECTION_NAME);
-      if (!token) {
-        const signInLink = await adapter.getSignInLink(context, CONNECTION_NAME);
-        await context.sendActivity({
-          attachments: [
-            CardFactory.signinCard(
-              'Please sign in to view your recent SharePoint/OneDrive files',
-              signInLink,
-              'Sign in'
-            )
-          ]
-        });
-        return;
+    // Log *every* activity that arrives (useful in Azure Log Stream)
+    this.use(async (context, next) => {
+      const a = context.activity;
+      console.log('--- Incoming Activity --------------------------------');
+      console.log(`type:        ${a.type}`);
+      console.log(`channelId:   ${a.channelId}`);
+      console.log(`conversation:${a.conversation?.id}`);
+      console.log(`from:        ${a.from?.id} (${a.from?.name || ''})`);
+      console.log(`recipient:   ${a.recipient?.id}`);
+      if (a.type === 'message') {
+        console.log(`text:        ${JSON.stringify(a.text)}`);
       }
+      console.log('------------------------------------------------------\n');
+      await next();
+    });
 
-      try {
-        // Call Graph for recent files across OneDrive/SharePoint
-        // You can swap for a SharePoint site collection later (Part 4C)
-        const data = await graphGet('/v1.0/me/drive/recent', token.token);
-        const items = (data?.value || []).slice(0, 5);
-        if (items.length === 0) {
-          await context.sendActivity('No recent files found.');
-        } else {
-          const lines = items.map((it, i) => `${i + 1}. **${it.name}**\n   📁 [Open file](${it.webUrl})`);
-          await context.sendActivity(`**Your recent files:**\n\n${lines.join('\n\n')}`);
+    this.onMembersAdded(async (context, next) => {
+      const membersAdded = context.activity.membersAdded || [];
+      for (const member of membersAdded) {
+        if (member.id !== context.activity.recipient.id) {
+          await context.sendActivity('Hi! ✅ I am alive. Say "hello" to test me.');
         }
-      } catch (e) {
-        console.error('Graph error:', e);
-        await context.sendActivity('Could not fetch files from Microsoft Graph.');
       }
-      return;
-    }
+      await next();
+    });
 
-    // default echo
-    await context.sendActivity(`You said: ${context.activity.text}`);
+    this.onMessage(async (context, next) => {
+      const text = (context.activity.text || '').trim();
+      // simple echo
+      await context.sendActivity(`You said: ${text || '(no text)'}`);
+      await next();
+    });
   }
 
-  else if (context.activity.type === ActivityTypes.Event &&
-           context.activity.name === 'tokens/response') {
-    // Token response from OAuth flow (Teams/WebChat)
-    await context.sendActivity('You are now signed in. Type "recent" to see your files.');
-  }
-
-  else if (context.activity.type === ActivityTypes.ConversationUpdate) {
-    if (context.activity.membersAdded?.some(m => m.id !== context.activity.recipient?.id)) {
-      await context.sendActivity('Hi! I am alive ✅ Say "recent" to fetch your files, or "signin" to connect.');
-    }
-  }
-  else {
-    await context.sendActivity(`(${context.activity.type}) event received.`);
+  // Middleware hook to enable the logging "use" above
+  use(mw) {
+    const prev = this.run.bind(this);
+    this.run = async (context) => {
+      await mw(context, async () => prev(context));
+    };
   }
 }
 
-// ---- Restify server
-const server = restify.createServer();
-server.use(restify.plugins.bodyParser({ mapParams: false }));
+const bot = new EchoBot();
 
-server.get('/', (_req, res) => res.send(200, { status: 'ok', path: '/' }));
-server.post('/api/messages', async (req, res) => {
-  await adapter.process(req, res, (ctx) => handleTurn(ctx));
-});
-
-const port = process.env.PORT || 3978;
-server.listen(port, () => {
-  console.log(`Bot Started, restify listening on http://localhost:${port}`);
+// ----- Messaging endpoint (async handler; no "next") -----
+server.post('/api/messages', (req, res) => {
+  adapter.processActivity(req, res, async (context) => {
+    await bot.run(context);
+    await conversationState.saveChanges(context, false);
+  });
 });
