@@ -1,7 +1,9 @@
 // index.js
 const restify = require('restify');
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+// remove this line if not using .env
+// require('dotenv').config({ path: path.join(__dirname, '.env') });
+
 
 const {
   BotFrameworkAdapter, // If you're on botbuilder <= 4.20
