@@ -1,88 +1,124 @@
 // index.js
-// Minimal Bot Framework + Restify host for Azure Web App
+// Minimal Bot Framework v4 app for Azure App Service (Node 20)
+// Uses CloudAdapter + Restify and reads creds from env vars:
+//   MicrosoftAppId, MicrosoftAppPassword, MicrosoftAppTenantId (optional)
 
-// ---- Load env (locally). Azure App Service uses App Settings, so .env is optional.
+const restify = require('restify');
+const {
+  ActivityHandler,
+  CloudAdapter,
+  ConfigurationServiceClientCredentialFactory,
+  createBotFrameworkAuthenticationFromConfiguration,
+  TurnContext,
+} = require('botbuilder');
+
+// --- Optional: load .env when running locally --- //
 try {
+  if (process.env.NODE_ENV !== 'production') {
     require('dotenv').config();
-  } catch (_) { /* ignore if not present */ }
-  
-  const restify = require('restify');
-  const { BotFrameworkAdapter } = require('botbuilder');
-  const pkg = require('./package.json');
-  
-  // Your bot logic (the class you already have in teamsBot.js)
-  const { TeamsBot } = require('./teamsBot');
-  
-  // ---- Basic sanity logging of required envs
-  const APP_ID = process.env.MicrosoftAppId || process.env.MICROSOFT_APP_ID || '';
-  const APP_PASSWORD = process.env.MicrosoftAppPassword || process.env.MICROSOFT_APP_PASSWORD || '';
-  const TENANT_ID = process.env.MicrosoftAppTenantId || process.env.MICROSOFT_APP_TENANT_ID || '';
-  
-  console.log(`[startup] package: ${pkg.name}@${pkg.version}`);
-  console.log(`[startup] Node: ${process.version}`);
-  console.log(`[startup] MicrosoftAppId present: ${APP_ID ? 'yes' : 'no'}`);
-  console.log(`[startup] MicrosoftAppPassword present: ${APP_PASSWORD ? 'yes' : 'no'}`);
-  console.log(`[startup] MicrosoftAppTenantId present: ${TENANT_ID ? 'yes' : 'no'}`);
-  
-  // ---- Create Restify server
-  const server = restify.createServer({ name: pkg.name });
-  server.use(restify.plugins.bodyParser({ mapParams: false }));
-  server.use(restify.plugins.queryParser());
-  
-  const PORT = process.env.PORT || process.env.port || 3978;
-  server.listen(PORT, () => {
-    console.log(`${server.name} listening on http://localhost:${PORT}`);
-  });
-  
-  // ---- Health + root routes (handy for Azure probes & quick checks)
-  server.get('/', (_req, res, _next) => {
-    res.send(200, { name: pkg.name, version: pkg.version, ok: true });
-  });
-  server.get('/api/health', (_req, res, _next) => res.send(200, { status: 'Healthy' }));
-  
-  // ---- Bot Framework adapter
-  const adapter = new BotFrameworkAdapter({
-    appId: APP_ID,
-    appPassword: APP_PASSWORD,
-  });
-  
-  // Catch-all error handler so Web Chat doesn’t “mysteriously” fail
-  adapter.onTurnError = async (context, error) => {
-    console.error('[onTurnError]', error);
-    try {
-      await context.sendActivity('Sorry, something went wrong.');
-    } catch (e) {
-      console.error('Failed to send error to user:', e);
-    }
-  };
-  
-  // ---- Create bot instance
-  const bot = new TeamsBot();
-  
-  // ---- Messages endpoint (IMPORTANT: async (req,res) — no `next`)
-  server.post('/api/messages', async (req, res) => {
-    await adapter.processActivity(req, res, async (context) => {
-      await bot.run(context);
+  }
+} catch (_) { /* noop */ }
+
+// --- Verify required environment variables --- //
+const APP_ID = process.env.MicrosoftAppId || '';
+const APP_PASSWORD = process.env.MicrosoftAppPassword || '';
+const APP_TENANT_ID = process.env.MicrosoftAppTenantId || ''; // needed for single-tenant apps
+
+if (!APP_ID || !APP_PASSWORD) {
+  console.warn(
+    '[startup] Missing MicrosoftAppId and/or MicrosoftAppPassword — the bot will return 401 to the connector.'
+  );
+}
+
+// --- Create adapter with proper credentials --- //
+const credentialsFactory = new ConfigurationServiceClientCredentialFactory({
+  MicrosoftAppId: APP_ID,
+  MicrosoftAppPassword: APP_PASSWORD,
+  MicrosoftAppTenantId: APP_TENANT_ID, // safe to include even if empty
+});
+
+const botFrameworkAuthentication = createBotFrameworkAuthenticationFromConfiguration(
+  null,
+  credentialsFactory
+);
+
+const adapter = new CloudAdapter(botFrameworkAuthentication);
+
+// Global error handler (shows up in App Service log stream)
+adapter.onTurnError = async (context, error) => {
+  console.error('[onTurnError] Unhandled error:', error);
+
+  // Send a trace activity for Emulator / inspection
+  await context.sendTraceActivity(
+    'onTurnError Trace',
+    `${error}`,
+    'https://www.botframework.com/schemas/error',
+    'TurnError'
+  );
+
+  // Friendly message to the user (fails silently if auth failed)
+  try {
+    await context.sendActivity('Oops, something went wrong processing your message.');
+  } catch (sendErr) {
+    console.error('[onTurnError] Failed to notify user:', sendErr);
+  }
+};
+
+// --- A very small bot --- //
+class SharePointBot extends ActivityHandler {
+  constructor() {
+    super();
+
+    this.onMembersAdded(async (context, next) => {
+      const membersAdded = context.activity.membersAdded || [];
+      for (const member of membersAdded) {
+        if (member.id !== context.activity.recipient.id) {
+          await context.sendActivity(
+            `Hi! I'm online. Say "hello" to check I'm responding.`
+          );
+        }
+      }
+      await next();
     });
-  });
-  
-  // (Optional) support preflight in some custom reverse-proxy setups
-  server.opts('/api/messages', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Headers', 'authorization, content-type');
-    res.header('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.send(200);
-    return next();
-  });
-  
-  // ---- Graceful shutdown (helps on swap/restart)
-  process.on('SIGTERM', () => {
-    console.log('SIGTERM received. Shutting down server…');
-    try {
-      server.close(() => process.exit(0));
-      setTimeout(() => process.exit(0), 2000);
-    } catch {
-      process.exit(0);
-    }
-  });
-  
+
+    this.onMessage(async (context, next) => {
+      const text = (TurnContext.removeRecipientMention(context.activity)?.text ||
+        context.activity.text ||
+        '').trim();
+
+      if (!text) {
+        await context.sendActivity('I received your message.');
+      } else if (/^hello\b/i.test(text)) {
+        await context.sendActivity('Hello! 👋 I’m alive and connected.');
+      } else {
+        await context.sendActivity(`You said: "${text}"`);
+      }
+
+      await next();
+    });
+  }
+}
+
+const bot = new SharePointBot();
+
+// --- Restify server --- //
+const server = restify.createServer();
+const port = process.env.PORT || 8080;
+
+// Health pings (GET /) — returns 200 JSON
+server.get('/', (req, res, next) => {
+  res.send(200, { status: 'ok', bot: 'jj-sharepoint-bot-web' });
+  return next();
+});
+
+// **IMPORTANT**: CloudAdapter expects an async handler, so we pass async (req, res) => ...
+server.post('/api/messages', async (req, res) => {
+  await adapter.process(req, res, (context) => bot.run(context));
+});
+
+// Start the server
+server.listen(port, () => {
+  console.log(`[startup] Server listening on http://localhost:${port}`);
+  console.log(`[startup] MicrosoftAppId present: ${APP_ID ? 'yes' : 'no'}`);
+  console.log(`[startup] MicrosoftAppTenantId present: ${APP_TENANT_ID ? 'yes' : 'no'}`);
+});
