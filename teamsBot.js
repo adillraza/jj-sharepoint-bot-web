@@ -100,6 +100,8 @@ Type \`help\` to see all available commands!
                 if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
                     try {
                         console.log('🔐 Attempting to get sign-in link for connection: GraphConnection');
+                        console.log('🔐 Bot App ID:', context.activity.recipient.id);
+                        console.log('🔐 Channel ID:', context.activity.channelId);
                         const signInLink = await context.adapter.getSignInLink(context, 'GraphConnection');
                         console.log('✅ Sign-in link generated successfully');
                         await context.sendActivity({
