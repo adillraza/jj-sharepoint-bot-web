@@ -70,6 +70,15 @@ Type \`help\` to see all available commands!
     async handleUserMessage(context, text) {
         const lowerText = text.toLowerCase().trim();
         
+        // Test command (no auth needed)
+        if (lowerText === 'test' || lowerText === 'ping') {
+            await context.sendActivity('✅ **Bot is working!**\n\nBasic functionality confirmed. Environment variables:\n' +
+                `• Client ID: ${CLIENT_ID ? 'SET' : 'MISSING'}\n` +
+                `• Tenant ID: ${TENANT_ID ? 'SET' : 'MISSING'}\n` +
+                `• Connection: ${CONNECTION_NAME}`);
+            return;
+        }
+        
         // Help command
         if (lowerText === 'help' || lowerText === 'commands') {
             const helpText = `
