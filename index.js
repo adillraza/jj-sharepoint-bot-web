@@ -15,17 +15,23 @@ console.log(`MicrosoftAppPassword present: ${MICROSOFT_APP_PASSWORD ? 'YES' : 'N
 console.log(`All Microsoft env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
 console.log('==================');
 
-// Create adapter - allow empty credentials for development
+// Create adapter with explicit validation
+if (!MICROSOFT_APP_ID || !MICROSOFT_APP_PASSWORD) {
+    console.error('❌ CRITICAL: Missing bot credentials!');
+    console.error('- MicrosoftAppId:', MICROSOFT_APP_ID ? 'SET' : 'MISSING');
+    console.error('- MicrosoftAppPassword:', MICROSOFT_APP_PASSWORD ? 'SET' : 'MISSING');
+    process.exit(1);
+}
+
 const adapter = new BotFrameworkAdapter({
-    appId: MICROSOFT_APP_ID || undefined,
-    appPassword: MICROSOFT_APP_PASSWORD || undefined
+    appId: MICROSOFT_APP_ID,
+    appPassword: MICROSOFT_APP_PASSWORD
 });
 
 // Log adapter configuration
-console.log('Adapter created with:');
-console.log(`- appId: ${MICROSOFT_APP_ID ? 'SET' : 'EMPTY (development mode)'}`);
-console.log(`- appPassword: ${MICROSOFT_APP_PASSWORD ? 'SET' : 'EMPTY (development mode)'}`);
-console.log(`- appId first 8 chars: ${MICROSOFT_APP_ID ? MICROSOFT_APP_ID.substring(0, 8) : 'N/A'}`);
+console.log('✅ Adapter created with valid credentials:');
+console.log(`- appId: ${MICROSOFT_APP_ID.substring(0, 8)}...`);
+console.log(`- appPassword: ${MICROSOFT_APP_PASSWORD.substring(0, 8)}...`);
 console.log('===================');
 
 // State management
