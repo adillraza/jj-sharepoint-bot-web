@@ -6,6 +6,7 @@ const { SharePointBot } = require('./teamsBot');
 // Environment variables - try multiple possible names
 const MICROSOFT_APP_ID = process.env.MicrosoftAppId || process.env.MicrosoftAppid || "";
 const MICROSOFT_APP_PASSWORD = process.env.MicrosoftAppPassword || process.env.MicrosoftApppassword || "";
+const CONNECTION_NAME = process.env.ConnectionName || "GraphConnection";
 
 console.log('=== Bot Startup ===');
 console.log(`Node.js version: ${process.version}`);
@@ -13,6 +14,7 @@ console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`MicrosoftAppId present: ${MICROSOFT_APP_ID ? 'YES' : 'NO'}`);
 console.log(`MicrosoftAppId value: ${MICROSOFT_APP_ID ? MICROSOFT_APP_ID.substring(0, 8) + '...' : 'EMPTY'}`);
 console.log(`MicrosoftAppPassword present: ${MICROSOFT_APP_PASSWORD ? 'YES' : 'NO'}`);
+console.log(`ConnectionName: ${CONNECTION_NAME}`);
 console.log(`All Microsoft env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
 console.log('==================');
 
@@ -28,7 +30,7 @@ if (!MICROSOFT_APP_ID || !MICROSOFT_APP_PASSWORD) {
 const adapter = new BotFrameworkAdapter({
     appId: MICROSOFT_APP_ID,
     appPassword: MICROSOFT_APP_PASSWORD,
-    channelAuthTenant: process.env.MicrosoftAppTenantId,
+    channelAuthTenant: process.env.MicrosoftAppTenantId || 'common',
     oAuthEndpoint: 'https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token'
 });
 
