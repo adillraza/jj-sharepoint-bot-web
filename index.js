@@ -2,6 +2,7 @@
 const restify = require('restify');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
 const { SharePointBot } = require('./teamsBot');
+const { MainDialog } = require('./mainDialog');
 
 // Environment variables - try multiple possible names
 const MICROSOFT_APP_ID = process.env.MicrosoftAppId || process.env.MicrosoftAppid || "";
@@ -44,8 +45,9 @@ console.log('===================');
 const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
 
-// Create bot instance
-const bot = new SharePointBot();
+// Dialog & Bot
+const mainDialog = new MainDialog();
+const bot = new SharePointBot(conversationState, mainDialog);
 
 // Catch-all for errors
 adapter.onTurnError = async (context, error) => {

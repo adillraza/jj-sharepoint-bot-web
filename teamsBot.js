@@ -1,5 +1,7 @@
 const { TeamsActivityHandler, CardFactory, TurnContext } = require('botbuilder');
+const { DialogSet, DialogTurnStatus } = require('botbuilder-dialogs');
 const { SharePointGraphClient } = require('./graph');
+const { DIALOG_ID } = require('./mainDialog');
 
 // Environment variables
 const CONNECTION_NAME = process.env.ConnectionName || "GraphConnection";
@@ -7,11 +9,15 @@ const CLIENT_ID = process.env.MicrosoftAppId;
 const TENANT_ID = process.env.MicrosoftAppTenantId;
 
 class SharePointBot extends TeamsActivityHandler {
-    constructor() {
+    constructor(conversationState, mainDialog) {
         super();
         
-        // Simple in-memory token storage (for demo - use proper storage in production)
-        this.userTokens = new Map();
+        this.conversationState = conversationState;
+        this.dialogState = this.conversationState.createProperty("DialogState");
+        
+        // Host the dialog
+        this.dialogs = new DialogSet(this.dialogState);
+        this.dialogs.add(mainDialog);
 
         this.onMembersAdded(async (context, next) => {
             const membersAdded = context.activity.membersAdded || [];
@@ -49,11 +55,33 @@ Type \`help\` to see all available commands!
 
             console.log(`SharePointBot received: "${text}"`);
             
-            try {
-                await this.handleUserMessage(context, text);
-            } catch (error) {
-                console.error('Error in SharePointBot:', error);
-                await context.sendActivity('Sorry, I encountered an error processing your request. Please try again.');
+            const lowerText = text.toLowerCase().trim();
+            
+            if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
+                // Start the OAuth dialog
+                console.log('🔐 Starting OAuth dialog...');
+                const dc = await this.dialogs.createContext(context);
+                await dc.beginDialog(DIALOG_ID);
+            } else if (lowerText === 'token') {
+                // Try to get a cached token
+                try {
+                    const token = await context.adapter.getUserToken(context, CONNECTION_NAME);
+                    if (token?.token) {
+                        await context.sendActivity(`🔐 **Token available**\n\nFirst 20 chars: ${token.token.substring(0, 20)}...\n\nYou can now use commands like \`recent\` or \`search\`.`);
+                } else {
+                        await context.sendActivity('❌ **No token found**\n\nType `signin` first to authenticate.');
+                    }
+                } catch (error) {
+                    console.error('Token check error:', error);
+                    await context.sendActivity('❌ **Error checking token**\n\nType `signin` to authenticate.');
+                }
+            } else {
+                try {
+                    await this.handleUserMessage(context, text);
+                } catch (error) {
+                    console.error('Error in SharePointBot:', error);
+                    await context.sendActivity('Sorry, I encountered an error processing your request. Please try again.');
+                }
             }
 
             await next();
@@ -62,9 +90,18 @@ Type \`help\` to see all available commands!
         // Handle OAuth token responses
         this.onTokenResponseEvent(async (context, next) => {
             console.log('Token response received');
-            await context.sendActivity('✅ You are now signed in! Type `recent` to see your files or `help` for all commands.');
             await next();
         });
+    }
+
+    async run(context) {
+        const dc = await this.dialogs.createContext(context);
+        const result = await dc.continueDialog();
+        if (result.status === DialogTurnStatus.empty) {
+            // no-op; normal onMessage handled above
+        }
+        await this.conversationState.saveChanges(context, false);
+        await super.run(context);
     }
 
     async handleUserMessage(context, text) {
@@ -79,35 +116,7 @@ Type \`help\` to see all available commands!
             return;
         }
         
-        // Token exchange command
-        if (lowerText.startsWith('token ')) {
-            const authCode = text.substring(6).trim();
-            if (!authCode) {
-                await context.sendActivity('❌ Please provide the authorization code.\nExample: `token 0.AXoAWvC...`');
-                return;
-            }
-            
-            try {
-                await context.sendActivity('🔄 **Exchanging authorization code for access token...**');
-                
-                // For now, just store the code (in a real app, you'd exchange it for a token)
-                const userId = context.activity.from.id;
-                this.userTokens.set(userId, `demo_token_${authCode.substring(0, 10)}`);
-                
-                await context.sendActivity('✅ **Authentication successful!**\n\n' +
-                    'You can now use commands like:\n' +
-                    '• `recent` - See your recent files\n' +
-                    '• `search [keyword]` - Search documents\n' +
-                    '• `help` - See all commands');
-                
-                console.log(`✅ User ${userId} authenticated with code: ${authCode.substring(0, 10)}...`);
-                
-            } catch (error) {
-                console.error('❌ Token exchange error:', error);
-                await context.sendActivity('❌ **Authentication failed**\n\nPlease try the signin process again.');
-            }
-            return;
-        }
+
         
         // Help command
         if (lowerText === 'help' || lowerText === 'commands') {
@@ -143,46 +152,7 @@ Type \`help\` to see all available commands!
             return;
         }
 
-                        // Sign-in command
-                if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
-                    try {
-                        console.log(`🔐 Direct Microsoft OAuth approach`);
-                        console.log('🔐 Client ID:', CLIENT_ID);
-                        console.log('🔐 Tenant ID:', TENANT_ID);
-                        
-                        // Direct Microsoft OAuth (no Bot Framework dependencies)
-                        const scopes = 'openid profile offline_access https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Sites.Read.All https://graph.microsoft.com/User.Read';
-                        const redirectUri = 'https://portal.azure.com'; // Simple redirect for demo
-                        const state = `botuser_${context.activity.from.id}`;
-                        
-                        const authUrl = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?` +
-                            `client_id=${encodeURIComponent(CLIENT_ID)}&` +
-                            `response_type=code&` +
-                            `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-                            `scope=${encodeURIComponent(scopes)}&` +
-                            `state=${encodeURIComponent(state)}&` +
-                            `response_mode=query&` +
-                            `prompt=select_account`;
-                        
-                        console.log('✅ Direct Microsoft OAuth URL generated');
-                        console.log('🔗 Auth URL:', authUrl);
-                        
-                        // Don't use CardFactory.signinCard - it might be causing Bot Framework OAuth calls
-                        await context.sendActivity('🔐 **Sign in to Microsoft 365**\n\n' +
-                            `**Click this link to sign in:**\n${authUrl}\n\n` +
-                            '**Steps:**\n' +
-                            '1. Click the link above\n' +
-                            '2. Sign in with your Microsoft 365 account\n' +
-                            '3. Copy the authorization code from the URL\n' +
-                            '4. Type `token [code]` to complete authentication\n\n' +
-                            'Example: `token 0.AXoAWvC...`');
-                        
-                    } catch (error) {
-                        console.error('❌ Direct OAuth error:', error);
-                        await context.sendActivity('Sorry, I couldn\'t generate a sign-in link. Please check the bot configuration.');
-                    }
-                    return;
-                }
+        
 
         // Sign-out command
         if (lowerText === 'logout' || lowerText === 'signout') {
@@ -196,15 +166,15 @@ Type \`help\` to see all available commands!
             return;
         }
 
-        // Get user token from manual storage only (no Bot Framework OAuth)
-        const userId = context.activity.from.id;
-        const token = this.userTokens.get(userId);
-        console.log(`🔍 Checking token for user ${userId}: ${token ? 'FOUND' : 'NOT FOUND'}`);
-        
-        if (!token) {
+        // Get user token using Bot Framework OAuth
+        const tokenResponse = await context.adapter.getUserToken(context, CONNECTION_NAME);
+        if (!tokenResponse || !tokenResponse.token) {
             await context.sendActivity('🔐 **Please sign in first**\n\nType `signin` to connect to Microsoft 365 and access your SharePoint documents.');
             return;
         }
+        
+        const token = tokenResponse.token;
+        console.log(`🔍 Token found for user, length: ${token.length}`);
 
         const graphClient = new SharePointGraphClient(token);
 
