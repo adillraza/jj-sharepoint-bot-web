@@ -167,18 +167,11 @@ Type \`help\` to see all available commands!
                         console.log('✅ Direct Microsoft OAuth URL generated');
                         console.log('🔗 Auth URL:', authUrl);
                         
-                        await context.sendActivity({
-                            attachments: [
-                                CardFactory.signinCard(
-                                    'Sign in to Microsoft 365',
-                                    authUrl,
-                                    'Sign in'
-                                )
-                            ]
-                        });
-                        
-                        await context.sendActivity('🔐 **Direct Microsoft OAuth**\n\n' +
-                            '1. Click the sign-in button above\n' +
+                        // Don't use CardFactory.signinCard - it might be causing Bot Framework OAuth calls
+                        await context.sendActivity('🔐 **Sign in to Microsoft 365**\n\n' +
+                            `**Click this link to sign in:**\n${authUrl}\n\n` +
+                            '**Steps:**\n' +
+                            '1. Click the link above\n' +
                             '2. Sign in with your Microsoft 365 account\n' +
                             '3. Copy the authorization code from the URL\n' +
                             '4. Type `token [code]` to complete authentication\n\n' +
@@ -203,22 +196,10 @@ Type \`help\` to see all available commands!
             return;
         }
 
-        // Get user token (try Bot Framework first, then manual storage)
-        let token = null;
-        try {
-            const tokenResponse = await context.adapter.getUserToken(context, CONNECTION_NAME);
-            if (tokenResponse && tokenResponse.token) {
-                token = tokenResponse.token;
-            }
-        } catch (error) {
-            console.log('Bot Framework token retrieval failed, checking manual storage');
-        }
-        
-        // Check manual token storage if Bot Framework failed
-        if (!token) {
-            const userId = context.activity.from.id;
-            token = this.userTokens.get(userId);
-        }
+        // Get user token from manual storage only (no Bot Framework OAuth)
+        const userId = context.activity.from.id;
+        const token = this.userTokens.get(userId);
+        console.log(`🔍 Checking token for user ${userId}: ${token ? 'FOUND' : 'NOT FOUND'}`);
         
         if (!token) {
             await context.sendActivity('🔐 **Please sign in first**\n\nType `signin` to connect to Microsoft 365 and access your SharePoint documents.');
