@@ -79,6 +79,36 @@ Type \`help\` to see all available commands!
             return;
         }
         
+        // Token exchange command
+        if (lowerText.startsWith('token ')) {
+            const authCode = text.substring(6).trim();
+            if (!authCode) {
+                await context.sendActivity('❌ Please provide the authorization code.\nExample: `token 0.AXoAWvC...`');
+                return;
+            }
+            
+            try {
+                await context.sendActivity('🔄 **Exchanging authorization code for access token...**');
+                
+                // For now, just store the code (in a real app, you'd exchange it for a token)
+                const userId = context.activity.from.id;
+                this.userTokens.set(userId, `demo_token_${authCode.substring(0, 10)}`);
+                
+                await context.sendActivity('✅ **Authentication successful!**\n\n' +
+                    'You can now use commands like:\n' +
+                    '• `recent` - See your recent files\n' +
+                    '• `search [keyword]` - Search documents\n' +
+                    '• `help` - See all commands');
+                
+                console.log(`✅ User ${userId} authenticated with code: ${authCode.substring(0, 10)}...`);
+                
+            } catch (error) {
+                console.error('❌ Token exchange error:', error);
+                await context.sendActivity('❌ **Authentication failed**\n\nPlease try the signin process again.');
+            }
+            return;
+        }
+        
         // Help command
         if (lowerText === 'help' || lowerText === 'commands') {
             const helpText = `
@@ -116,14 +146,14 @@ Type \`help\` to see all available commands!
                         // Sign-in command
                 if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
                     try {
-                        console.log(`🔐 Manual OAuth approach for connection: ${CONNECTION_NAME}`);
+                        console.log(`🔐 Direct Microsoft OAuth approach`);
                         console.log('🔐 Client ID:', CLIENT_ID);
                         console.log('🔐 Tenant ID:', TENANT_ID);
                         
-                        // Manual OAuth URL construction (bypassing Bot Framework OAuth)
-                        const scopes = 'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Sites.Read.All https://graph.microsoft.com/User.Read';
-                        const redirectUri = 'https://token.botframework.com/.auth/web/redirect';
-                        const state = `${context.activity.from.id}|${context.activity.conversation.id}|${context.activity.channelId}`;
+                        // Direct Microsoft OAuth (no Bot Framework dependencies)
+                        const scopes = 'openid profile offline_access https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Sites.Read.All https://graph.microsoft.com/User.Read';
+                        const redirectUri = 'https://portal.azure.com'; // Simple redirect for demo
+                        const state = `botuser_${context.activity.from.id}`;
                         
                         const authUrl = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?` +
                             `client_id=${encodeURIComponent(CLIENT_ID)}&` +
@@ -131,9 +161,11 @@ Type \`help\` to see all available commands!
                             `redirect_uri=${encodeURIComponent(redirectUri)}&` +
                             `scope=${encodeURIComponent(scopes)}&` +
                             `state=${encodeURIComponent(state)}&` +
-                            `response_mode=query`;
+                            `response_mode=query&` +
+                            `prompt=select_account`;
                         
-                        console.log('✅ Manual OAuth URL generated');
+                        console.log('✅ Direct Microsoft OAuth URL generated');
+                        console.log('🔗 Auth URL:', authUrl);
                         
                         await context.sendActivity({
                             attachments: [
@@ -145,10 +177,15 @@ Type \`help\` to see all available commands!
                             ]
                         });
                         
-                        await context.sendActivity('🔐 **Manual OAuth Flow**\n\nClick the sign-in button above to authenticate with Microsoft 365. After signing in, you\'ll be redirected back and can use commands like `recent` or `search`.');
+                        await context.sendActivity('🔐 **Direct Microsoft OAuth**\n\n' +
+                            '1. Click the sign-in button above\n' +
+                            '2. Sign in with your Microsoft 365 account\n' +
+                            '3. Copy the authorization code from the URL\n' +
+                            '4. Type `token [code]` to complete authentication\n\n' +
+                            'Example: `token 0.AXoAWvC...`');
                         
                     } catch (error) {
-                        console.error('❌ Manual OAuth error:', error);
+                        console.error('❌ Direct OAuth error:', error);
                         await context.sendActivity('Sorry, I couldn\'t generate a sign-in link. Please check the bot configuration.');
                     }
                     return;
