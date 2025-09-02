@@ -105,8 +105,22 @@ Type \`help\` to see all available commands!
                         console.log(`🔐 Attempting to get sign-in link for connection: ${CONNECTION_NAME}`);
                         console.log('🔐 Bot App ID:', context.activity.recipient.id);
                         console.log('🔐 Channel ID:', context.activity.channelId);
-                        const signInLink = await context.adapter.getSignInLink(context, CONNECTION_NAME);
-                        console.log('✅ Sign-in link generated successfully');
+                        
+                        // Try the standard Bot Framework approach first
+                        let signInLink;
+                        try {
+                            signInLink = await context.adapter.getSignInLink(context, CONNECTION_NAME);
+                            console.log('✅ Standard sign-in link generated successfully');
+                        } catch (standardError) {
+                            console.log('⚠️ Standard approach failed, trying direct URL approach');
+                            // Fallback to direct OAuth URL construction
+                            const botId = context.activity.recipient.id;
+                            const userId = context.activity.from.id;
+                            const channelId = context.activity.channelId;
+                            signInLink = `https://token.botframework.com/api/oauth/signin?signin=${encodeURIComponent(botId)}&connectionName=${encodeURIComponent(CONNECTION_NAME)}&userId=${encodeURIComponent(userId)}&channelId=${encodeURIComponent(channelId)}`;
+                            console.log('✅ Direct sign-in link generated');
+                        }
+                        
                         await context.sendActivity({
                             attachments: [
                                 CardFactory.signinCard(
