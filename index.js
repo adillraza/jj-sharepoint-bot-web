@@ -25,6 +25,7 @@ const adapter = new BotFrameworkAdapter({
 console.log('Adapter created with:');
 console.log(`- appId: ${MICROSOFT_APP_ID ? 'SET' : 'EMPTY (development mode)'}`);
 console.log(`- appPassword: ${MICROSOFT_APP_PASSWORD ? 'SET' : 'EMPTY (development mode)'}`);
+console.log(`- appId first 8 chars: ${MICROSOFT_APP_ID ? MICROSOFT_APP_ID.substring(0, 8) : 'N/A'}`);
 console.log('===================');
 
 // State management
@@ -117,6 +118,10 @@ server.post('/api/messages', async (req, res) => {
           console.error('❌ [sendActivity error]', err.message);
           console.error('Error status:', err.statusCode);
           console.error('Error code:', err.code);
+          console.error('Error name:', err.name);
+          console.error('Request URL:', err.request?.url);
+          console.error('Request headers (auth):', err.request?.headers?.authorization ? 'PRESENT' : 'MISSING');
+          console.error('Response headers:', err.response?.headers);
           console.error('Full error details:', JSON.stringify(err, null, 2));
         }
       } else {
