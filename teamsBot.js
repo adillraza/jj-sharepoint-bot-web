@@ -3,10 +3,15 @@ const { SharePointGraphClient } = require('./graph');
 
 // Environment variables
 const CONNECTION_NAME = process.env.ConnectionName || "GraphConnection";
+const CLIENT_ID = process.env.MicrosoftAppId;
+const TENANT_ID = process.env.MicrosoftAppTenantId;
 
 class SharePointBot extends TeamsActivityHandler {
     constructor() {
         super();
+        
+        // Simple in-memory token storage (for demo - use proper storage in production)
+        this.userTokens = new Map();
 
         this.onMembersAdded(async (context, next) => {
             const membersAdded = context.activity.membersAdded || [];
@@ -102,39 +107,40 @@ Type \`help\` to see all available commands!
                         // Sign-in command
                 if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
                     try {
-                        console.log(`🔐 Attempting to get sign-in link for connection: ${CONNECTION_NAME}`);
-                        console.log('🔐 Bot App ID:', context.activity.recipient.id);
-                        console.log('🔐 Channel ID:', context.activity.channelId);
+                        console.log(`🔐 Manual OAuth approach for connection: ${CONNECTION_NAME}`);
+                        console.log('🔐 Client ID:', CLIENT_ID);
+                        console.log('🔐 Tenant ID:', TENANT_ID);
                         
-                        // Try the standard Bot Framework approach first
-                        let signInLink;
-                        try {
-                            signInLink = await context.adapter.getSignInLink(context, CONNECTION_NAME);
-                            console.log('✅ Standard sign-in link generated successfully');
-                        } catch (standardError) {
-                            console.log('⚠️ Standard approach failed, trying direct URL approach');
-                            // Fallback to direct OAuth URL construction
-                            const botId = context.activity.recipient.id;
-                            const userId = context.activity.from.id;
-                            const channelId = context.activity.channelId;
-                            signInLink = `https://token.botframework.com/api/oauth/signin?signin=${encodeURIComponent(botId)}&connectionName=${encodeURIComponent(CONNECTION_NAME)}&userId=${encodeURIComponent(userId)}&channelId=${encodeURIComponent(channelId)}`;
-                            console.log('✅ Direct sign-in link generated');
-                        }
+                        // Manual OAuth URL construction (bypassing Bot Framework OAuth)
+                        const scopes = 'https://graph.microsoft.com/Files.Read https://graph.microsoft.com/Sites.Read.All https://graph.microsoft.com/User.Read';
+                        const redirectUri = 'https://token.botframework.com/.auth/web/redirect';
+                        const state = `${context.activity.from.id}|${context.activity.conversation.id}|${context.activity.channelId}`;
+                        
+                        const authUrl = `https://login.microsoftonline.com/${TENANT_ID}/oauth2/v2.0/authorize?` +
+                            `client_id=${encodeURIComponent(CLIENT_ID)}&` +
+                            `response_type=code&` +
+                            `redirect_uri=${encodeURIComponent(redirectUri)}&` +
+                            `scope=${encodeURIComponent(scopes)}&` +
+                            `state=${encodeURIComponent(state)}&` +
+                            `response_mode=query`;
+                        
+                        console.log('✅ Manual OAuth URL generated');
                         
                         await context.sendActivity({
                             attachments: [
                                 CardFactory.signinCard(
                                     'Sign in to Microsoft 365',
-                                    signInLink,
-                                    'Continue'
+                                    authUrl,
+                                    'Sign in'
                                 )
                             ]
                         });
+                        
+                        await context.sendActivity('🔐 **Manual OAuth Flow**\n\nClick the sign-in button above to authenticate with Microsoft 365. After signing in, you\'ll be redirected back and can use commands like `recent` or `search`.');
+                        
                     } catch (error) {
-                        console.error('❌ Sign-in error details:', error);
-                        console.error('❌ Error message:', error.message);
-                        console.error('❌ Error stack:', error.stack);
-                        await context.sendActivity('Sorry, I couldn\'t generate a sign-in link. Please make sure the OAuth connection is configured.');
+                        console.error('❌ Manual OAuth error:', error);
+                        await context.sendActivity('Sorry, I couldn\'t generate a sign-in link. Please check the bot configuration.');
                     }
                     return;
                 }
@@ -151,27 +157,29 @@ Type \`help\` to see all available commands!
             return;
         }
 
-        // Get user token
-        const token = await context.adapter.getUserToken(context, CONNECTION_NAME);
-        if (!token) {
-            try {
-                const signInLink = await context.adapter.getSignInLink(context, CONNECTION_NAME);
-                await context.sendActivity({
-                    attachments: [
-                        CardFactory.signinCard(
-                            'Please sign in to access SharePoint documents',
-                            signInLink,
-                            'Sign in'
-                        )
-                    ]
-                });
-            } catch (error) {
-                await context.sendActivity('Please sign in first. Type `signin` to connect to Microsoft 365.');
+        // Get user token (try Bot Framework first, then manual storage)
+        let token = null;
+        try {
+            const tokenResponse = await context.adapter.getUserToken(context, CONNECTION_NAME);
+            if (tokenResponse && tokenResponse.token) {
+                token = tokenResponse.token;
             }
+        } catch (error) {
+            console.log('Bot Framework token retrieval failed, checking manual storage');
+        }
+        
+        // Check manual token storage if Bot Framework failed
+        if (!token) {
+            const userId = context.activity.from.id;
+            token = this.userTokens.get(userId);
+        }
+        
+        if (!token) {
+            await context.sendActivity('🔐 **Please sign in first**\n\nType `signin` to connect to Microsoft 365 and access your SharePoint documents.');
             return;
         }
 
-        const graphClient = new SharePointGraphClient(token.token);
+        const graphClient = new SharePointGraphClient(token);
 
         // Recent documents
         if (lowerText === 'recent' || lowerText === 'recent files') {
