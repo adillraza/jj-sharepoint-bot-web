@@ -96,25 +96,29 @@ Type \`help\` to see all available commands!
             return;
         }
 
-        // Sign-in command
-        if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
-            try {
-                const signInLink = await context.adapter.getSignInLink(context, 'GraphConnection');
-                await context.sendActivity({
-                    attachments: [
-                        CardFactory.signinCard(
-                            'Sign in to Microsoft 365',
-                            signInLink,
-                            'Continue'
-                        )
-                    ]
-                });
-            } catch (error) {
-                console.error('Sign-in error:', error);
-                await context.sendActivity('Sorry, I couldn\'t generate a sign-in link. Please make sure the OAuth connection is configured.');
-            }
-            return;
-        }
+                        // Sign-in command
+                if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
+                    try {
+                        console.log('🔐 Attempting to get sign-in link for connection: GraphConnection');
+                        const signInLink = await context.adapter.getSignInLink(context, 'GraphConnection');
+                        console.log('✅ Sign-in link generated successfully');
+                        await context.sendActivity({
+                            attachments: [
+                                CardFactory.signinCard(
+                                    'Sign in to Microsoft 365',
+                                    signInLink,
+                                    'Continue'
+                                )
+                            ]
+                        });
+                    } catch (error) {
+                        console.error('❌ Sign-in error details:', error);
+                        console.error('❌ Error message:', error.message);
+                        console.error('❌ Error stack:', error.stack);
+                        await context.sendActivity('Sorry, I couldn\'t generate a sign-in link. Please make sure the OAuth connection is configured.');
+                    }
+                    return;
+                }
 
         // Sign-out command
         if (lowerText === 'logout' || lowerText === 'signout') {
