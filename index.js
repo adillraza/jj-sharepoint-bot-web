@@ -114,7 +114,10 @@ server.post('/api/messages', async (req, res) => {
           await context.sendActivity(`You said: ${text}`);
           console.log('✅ Response sent successfully!');
         } catch (err) {
-          console.error('❌ [sendActivity error]', err);
+          console.error('❌ [sendActivity error]', err.message);
+          console.error('Error status:', err.statusCode);
+          console.error('Error code:', err.code);
+          console.error('Full error details:', JSON.stringify(err, null, 2));
         }
       } else {
         // Don't reply to typing/other events to keep the connector happy
