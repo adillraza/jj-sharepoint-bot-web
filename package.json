@@ -8,6 +8,9 @@
   "dependencies": {
     "restify": "^11.1.0",
     "botbuilder": "^4.22.3",
-    "dotenv": "^16.4.5"
+    "botbuilder-dialogs": "^4.22.3",
+    "dotenv": "^16.4.5",
+    "@azure/msal-node": "^2.6.6",
+    "axios": "^1.6.7"
   }
 }

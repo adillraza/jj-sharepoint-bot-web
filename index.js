@@ -1,6 +1,7 @@
 // index.js
 const restify = require('restify');
 const { BotFrameworkAdapter, MemoryStorage, ConversationState } = require('botbuilder');
+const { SharePointBot } = require('./teamsBot');
 
 // Environment variables - try multiple possible names
 const MICROSOFT_APP_ID = process.env.MicrosoftAppId || process.env.MicrosoftAppid || "";
@@ -41,6 +42,9 @@ console.log('===================');
 const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
 
+// Create bot instance
+const bot = new SharePointBot();
+
 // Catch-all for errors
 adapter.onTurnError = async (context, error) => {
     console.error(`\n [onTurnError] Unhandled error: ${error}`);
@@ -76,67 +80,22 @@ server.listen(PORT, () => {
     console.log(`\nBot Started, listening on http://localhost:${PORT}`);
 });
 
-// Bot logic
-async function handleMessage(context) {
-    try {
+
+
+
+
+// Entry point: async handler for Restify
+server.post('/api/messages', async (req, res) => {
+    console.log('🚀 Processing /api/messages request...');
+    await adapter.processActivity(req, res, async (context) => {
         console.log("===== Incoming Activity =====");
         console.log(JSON.stringify(context.activity, null, 2));
-
-        if (context.activity.type === 'message') {
-            const userMessage = context.activity.text || '';
-            console.log(`User said: ${userMessage}`);
-
-            console.log(`About to send response...`);
-            
-            // Try the simplest possible response
-            try {
-                await context.sendActivity('Hello! I received your message.');
-                console.log('✅ Simple response sent successfully');
-            } catch (sendError) {
-                console.error('❌ Failed to send simple response:', sendError.message);
-                console.error('Full error:', sendError);
-            }
-        } else {
-            const response = `[${context.activity.type} event detected]`;
-            console.log(`Bot responding: ${response}`);
-            await context.sendActivity(response);
-            console.log('Response sent successfully');
-        }
-    } catch (error) {
-        console.error('❌ Error in handleMessage:', error.message);
-        console.error('Error type:', error.constructor.name);
-        console.error('Error details:', error);
-        // Don't re-throw any errors - just log them
-    }
-}
-
-// Entry point: async handler for Restify (VERSION 2)
-server.post('/api/messages', async (req, res) => {
-    console.log('🚀 [VERSION 2] Processing /api/messages request...');
-    await adapter.processActivity(req, res, async (context) => {
-      console.log("===== Incoming Activity =====");
-      console.log(JSON.stringify(context.activity, null, 2));
-  
-      if (context.activity.type === 'message') {
-        const text = context.activity.text || '';
-        console.log(`Sending echo to conversation: ${context.activity.conversation?.id}`);
-        try {
-          await context.sendActivity(`You said: ${text}`);
-          console.log('✅ Response sent successfully!');
-        } catch (err) {
-          console.error('❌ [sendActivity error]', err.message);
-          console.error('Error status:', err.statusCode);
-          console.error('Error code:', err.code);
-          console.error('Error name:', err.name);
-          console.error('Request URL:', err.request?.url);
-          console.error('Request headers (auth):', err.request?.headers?.authorization ? 'PRESENT' : 'MISSING');
-          console.error('Response headers:', err.response?.headers);
-          console.error('Full error details:', JSON.stringify(err, null, 2));
-        }
-      } else {
-        // Don't reply to typing/other events to keep the connector happy
-        console.log(`Non-message activity (${context.activity.type}) received; no reply sent.`);
-      }
+        
+        // Run the bot
+        await bot.run(context);
+        
+        // Save conversation state
+        await conversationState.saveChanges(context, false);
     });
 });
   
