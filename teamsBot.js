@@ -58,23 +58,23 @@ Type \`help\` to see all available commands!
             const lowerText = text.toLowerCase().trim();
             
             if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
-                // Start the OAuth dialog
-                console.log('🔐 Starting OAuth dialog...');
-                const dc = await this.dialogs.createContext(context);
-                await dc.beginDialog(DIALOG_ID);
-            } else if (lowerText === 'token') {
-                // Try to get a cached token
-                try {
-                    const token = await context.adapter.getUserToken(context, CONNECTION_NAME);
-                    if (token?.token) {
-                        await context.sendActivity(`🔐 **Token available**\n\nFirst 20 chars: ${token.token.substring(0, 20)}...\n\nYou can now use commands like \`recent\` or \`search\`.`);
-                } else {
-                        await context.sendActivity('❌ **No token found**\n\nType `signin` first to authenticate.');
-                    }
-                } catch (error) {
-                    console.error('Token check error:', error);
-                    await context.sendActivity('❌ **Error checking token**\n\nType `signin` to authenticate.');
-                }
+                // TEMPORARILY DISABLE OAuth for debugging
+                console.log('🔐 OAuth temporarily disabled for debugging');
+                await context.sendActivity('🚧 **OAuth temporarily disabled for debugging**\n\n' +
+                    'This confirms the bot is working. The OAuth issue needs to be resolved at the Azure configuration level.\n\n' +
+                    'Try these basic commands:\n' +
+                    '• `test` - Test bot functionality\n' +
+                    '• `help` - See all commands');
+                return;
+                
+                // ORIGINAL CODE (disabled):
+                // console.log('🔐 Starting OAuth dialog...');
+                // const dc = await this.dialogs.createContext(context);
+                // await dc.beginDialog(DIALOG_ID);
+                        } else if (lowerText === 'token') {
+                // TEMPORARILY DISABLE token check for debugging
+                await context.sendActivity('🚧 **Token check temporarily disabled for debugging**\n\n' +
+                    'This avoids the OAuth 404 error. The issue is in the Bot Framework OAuth configuration.');
             } else {
                 try {
                     await this.handleUserMessage(context, text);
