@@ -1,6 +1,9 @@
 const { TeamsActivityHandler, CardFactory, TurnContext } = require('botbuilder');
 const { SharePointGraphClient } = require('./graph');
 
+// Environment variables
+const CONNECTION_NAME = process.env.ConnectionName || "GraphConnection";
+
 class SharePointBot extends TeamsActivityHandler {
     constructor() {
         super();
@@ -99,10 +102,10 @@ Type \`help\` to see all available commands!
                         // Sign-in command
                 if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
                     try {
-                        console.log('🔐 Attempting to get sign-in link for connection: GraphConnection');
+                        console.log(`🔐 Attempting to get sign-in link for connection: ${CONNECTION_NAME}`);
                         console.log('🔐 Bot App ID:', context.activity.recipient.id);
                         console.log('🔐 Channel ID:', context.activity.channelId);
-                        const signInLink = await context.adapter.getSignInLink(context, 'GraphConnection');
+                        const signInLink = await context.adapter.getSignInLink(context, CONNECTION_NAME);
                         console.log('✅ Sign-in link generated successfully');
                         await context.sendActivity({
                             attachments: [
@@ -125,7 +128,7 @@ Type \`help\` to see all available commands!
         // Sign-out command
         if (lowerText === 'logout' || lowerText === 'signout') {
             try {
-                await context.adapter.signOutUser(context, 'GraphConnection');
+                await context.adapter.signOutUser(context, CONNECTION_NAME);
                 await context.sendActivity('✅ You have been signed out. Type `signin` to connect again.');
             } catch (error) {
                 console.error('Sign-out error:', error);
@@ -135,10 +138,10 @@ Type \`help\` to see all available commands!
         }
 
         // Get user token
-        const token = await context.adapter.getUserToken(context, 'GraphConnection');
+        const token = await context.adapter.getUserToken(context, CONNECTION_NAME);
         if (!token) {
             try {
-                const signInLink = await context.adapter.getSignInLink(context, 'GraphConnection');
+                const signInLink = await context.adapter.getSignInLink(context, CONNECTION_NAME);
                 await context.sendActivity({
                     attachments: [
                         CardFactory.signinCard(
