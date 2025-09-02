@@ -23,9 +23,12 @@ if (!MICROSOFT_APP_ID || !MICROSOFT_APP_PASSWORD) {
     process.exit(1);
 }
 
+// Create adapter with explicit authentication settings
 const adapter = new BotFrameworkAdapter({
     appId: MICROSOFT_APP_ID,
-    appPassword: MICROSOFT_APP_PASSWORD
+    appPassword: MICROSOFT_APP_PASSWORD,
+    channelAuthTenant: process.env.MicrosoftAppTenantId,
+    oAuthEndpoint: 'https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token'
 });
 
 // Log adapter configuration
