@@ -184,20 +184,19 @@ Type \`help\` to see all available commands!
             return;
         }
 
-        // BYPASS token requirement for testing (Managed Identity approach)
-        console.log('🚧 Bypassing token requirement for testing...');
-        
-        // For now, use a placeholder - in production, we'll use Managed Identity
-        const mockToken = 'BYPASS_MODE_TOKEN';
-        await context.sendActivity('🚧 **Demo Mode Active**\n\n' +
-            'OAuth token requirement bypassed. In production, this will use Azure Managed Identity.\n\n' +
-            '📋 **Available commands:**\n' +
-            '• `recent` - Show recent files (simulated)\n' +
-            '• `search [keyword]` - Search documents (simulated)\n' +
-            '• `help` - Show all commands');
-        
-        // Skip actual Graph API calls for now
-        return;
+                 // TEST MODE: Managed Identity without Graph permissions
+         console.log('🧪 Test Mode: Managed Identity without Graph permissions...');
+         
+         const graphClient = new SharePointGraphClient('TEST_MODE');
+         
+         await context.sendActivity('🧪 **Test Mode Active**\n\n' +
+             '✅ **Managed Identity is configured**\n' +
+             '⚠️ **Waiting for admin to grant Graph permissions**\n\n' +
+             '📋 **Available commands:**\n' +
+             '• `recent` - Test Graph API call (will show permission error)\n' +
+             '• `search [keyword]` - Test search (simulated)\n' +
+             '• `help` - Show all commands\n\n' +
+             '💡 **Next step**: Ask your admin to grant Microsoft Graph permissions.');
 
         // Recent documents
         if (lowerText === 'recent' || lowerText === 'recent files') {
@@ -215,8 +214,16 @@ Type \`help\` to see all available commands!
                     await context.sendActivity('📁 No recent documents found.');
                 }
             } catch (error) {
-                console.error('Error fetching recent documents:', error);
-                await context.sendActivity('❌ Sorry, I couldn\'t retrieve your recent documents. Please try again.');
+                console.error('Graph API Error (expected):', error.message);
+                if (error.message.includes('403') || error.message.includes('Forbidden')) {
+                    await context.sendActivity('🔒 **Permission Error (Expected)**\n\n' +
+                        '❌ **Error**: Insufficient privileges to access Microsoft Graph\n\n' +
+                        '✅ **Good news**: Managed Identity is working!\n' +
+                        '⚠️ **Issue**: Missing Graph permissions\n\n' +
+                        '💡 **Solution**: Ask your admin to run the PowerShell script to grant permissions.');
+                } else {
+                    await context.sendActivity(`❌ **Unexpected Error**: ${error.message}\n\nThis might indicate a different configuration issue.`);
+                }
             }
             return;
         }

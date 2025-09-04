@@ -1,14 +1,25 @@
-// graph.js - SharePoint Document Reader
-const axios = require('axios');
-
-class SharePointGraphClient {
-  constructor(accessToken) {
-    this.accessToken = accessToken;
-    this.baseURL = 'https://graph.microsoft.com/v1.0';
-  }
+  // graph.js - SharePoint Document Reader
+  const axios = require('axios');
+  const { ManagedIdentityAuth } = require('./auth');
+  
+  class SharePointGraphClient {
+    constructor(accessToken = null) {
+      this.accessToken = accessToken;
+      this.baseURL = 'https://graph.microsoft.com/v1.0';
+      this.auth = new ManagedIdentityAuth();
+    }
+  
+    async ensureToken() {
+      if (!this.accessToken || this.accessToken === 'TEST_MODE') {
+        console.log('🔄 Using Managed Identity to get access token...');
+        this.accessToken = await this.auth.getAccessToken();
+      }
+      return this.accessToken;
+    }
 
   async request(endpoint) {
     try {
+      await this.ensureToken();
       const response = await axios.get(`${this.baseURL}${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`,
