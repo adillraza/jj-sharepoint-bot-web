@@ -51,10 +51,32 @@
     return await this.request(endpoint);
   }
 
-  // Get recent documents from user's OneDrive/SharePoint
+  // Get recent documents from SharePoint sites (using application permissions)
   async getRecentDocuments() {
-    const endpoint = '/me/drive/recent?$top=10';
-    return await this.request(endpoint);
+    try {
+      // First, get all sites
+      const sitesEndpoint = '/sites?$top=10';
+      const sitesResponse = await this.request(sitesEndpoint);
+      
+      if (!sitesResponse.value || sitesResponse.value.length === 0) {
+        return { value: [] };
+      }
+
+      // Get documents from the first available site
+      const firstSite = sitesResponse.value[0];
+      const documentsEndpoint = `/sites/${firstSite.id}/drive/root/children?$top=10&$orderby=lastModifiedDateTime desc`;
+      return await this.request(documentsEndpoint);
+    } catch (error) {
+      console.error('Error getting recent documents:', error.message);
+      // Fallback: try to get from root site
+      try {
+        const rootSiteEndpoint = '/sites/root/drive/root/children?$top=10&$orderby=lastModifiedDateTime desc';
+        return await this.request(rootSiteEndpoint);
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError.message);
+        throw error;
+      }
+    }
   }
 
   // Get document content (for text files)
