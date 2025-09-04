@@ -12,6 +12,9 @@ class BotAppAuth {
     async getAccessToken() {
         try {
             console.log('🔐 Getting access token using Bot App Registration...');
+            console.log(`📋 Using Client ID: ${this.clientId?.substring(0, 8)}...`);
+            console.log(`📋 Using Tenant ID: ${this.tenantId}`);
+            console.log(`📋 Requesting scope: ${this.scope}`);
             
             const tokenUrl = `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/token`;
             const params = new URLSearchParams();
@@ -27,6 +30,19 @@ class BotAppAuth {
             });
 
             console.log('✅ Access token obtained successfully using Bot App Registration');
+            
+            // Decode token to see what permissions we have
+            if (response.data.access_token) {
+                try {
+                    const tokenParts = response.data.access_token.split('.');
+                    const payload = JSON.parse(Buffer.from(tokenParts[1], 'base64').toString());
+                    console.log(`🔍 Token app ID: ${payload.appid}`);
+                    console.log(`🔍 Token roles: ${payload.roles ? payload.roles.join(', ') : 'None'}`);
+                } catch (decodeError) {
+                    console.log('⚠️ Could not decode token for debugging');
+                }
+            }
+            
             return response.data.access_token;
         } catch (error) {
             console.error('❌ Failed to get access token:', error.response?.data || error.message);

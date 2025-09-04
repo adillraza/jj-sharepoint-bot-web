@@ -139,33 +139,35 @@ Type \`help\` to see all available commands!
         // Help command
         if (lowerText === 'help' || lowerText === 'commands') {
             const helpText = `
-**🤖 AI-Powered SharePoint Assistant Commands:**
+**🤖 AI-Powered SharePoint Assistant:**
 
-**📁 Document Discovery:**
+**💬 General AI Chat:**
+• Ask me anything! (like ChatGPT)
+• "How is the weather?"
+• "Explain quantum physics"
+• "Help me write an email"
+
+**📁 SharePoint Documents:**
 • \`recent\` - Show recent documents
 • \`search [query]\` - Search SharePoint documents
+• \`summarize [document]\` - Get AI summary
+• \`insights [document]\` - Get AI insights
 
-**🤖 AI-Powered Features:**
-• Ask any question about your documents!
-• \`summarize [document]\` - Get AI summary of a document
-• \`insights [document]\` - Get AI insights from a document
-
-**❓ Smart Q&A Examples:**
+**❓ Document Q&A Examples:**
 • "What is in the price changes document?"
 • "What are the key deadlines?"
 • "Who are the contacts mentioned?"
 • "Summarize the policies and procedures"
-• "Give me insights on product resources"
 
 **🔧 System:**
 • \`test\` - Check bot functionality
 • \`logout\` - Sign out from Microsoft 365
 
-**💡 AI Features:**
-✅ Smart document summarization
-✅ Intelligent insights extraction
-✅ Context-aware question answering
-✅ Pattern recognition (dates, money, contacts)
+**🚀 I'm powered by Azure OpenAI and can:**
+✅ Answer general questions (like ChatGPT)
+✅ Analyze your SharePoint documents
+✅ Provide intelligent insights and summaries
+✅ Recognize patterns (dates, money, contacts)
             `;
             
             await context.sendActivity(helpText);
@@ -262,12 +264,20 @@ Type \`help\` to see all available commands!
             return;
         }
 
-        // Default: treat as a question about documents
+        // Default: Intelligent question handling
         try {
-            await context.sendActivity(`🤔 Let me search your SharePoint documents to answer: "${text}"`);
-            await this.handleDocumentQuestion(context, text, graphClient);
+            // Determine if this is a SharePoint-related question or general question
+            const isSharePointRelated = this.isSharePointRelatedQuestion(text);
+            
+            if (isSharePointRelated) {
+                await context.sendActivity(`🔍 Let me search your SharePoint documents to answer: "${text}"`);
+                await this.handleDocumentQuestion(context, text, graphClient);
+            } else {
+                await context.sendActivity(`🤖 Let me think about that...`);
+                await this.handleGeneralQuestion(context, text);
+            }
         } catch (error) {
-            console.error('Error handling document question:', error);
+            console.error('Error handling question:', error);
             await context.sendActivity(`❌ I couldn't process your question right now.\n\n💡 Try:\n• \`recent\` - See your recent files\n• \`search [keyword]\` - Find documents\n• \`help\` - See all commands`);
         }
     }
@@ -487,6 +497,90 @@ Type \`help\` to see all available commands!
         } catch (error) {
             console.error('❌ Insights error:', error);
             await context.sendActivity(`❌ Error generating insights: ${error.message}`);
+        }
+    }
+
+    // Determine if a question is SharePoint/document related
+    isSharePointRelatedQuestion(text) {
+        const lowerText = text.toLowerCase();
+        
+        // SharePoint/document keywords
+        const sharePointKeywords = [
+            'document', 'file', 'pdf', 'docx', 'excel', 'powerpoint',
+            'sharepoint', 'upload', 'download', 'recent', 'folder',
+            'policy', 'procedure', 'project', 'plan', 'budget', 'report',
+            'contract', 'agreement', 'invoice', 'receipt', 'price',
+            'stock', 'arrival', 'recieval', 'jono', 'johno', 'staff'
+        ];
+        
+        // Question patterns that suggest document search
+        const documentPatterns = [
+            'what is in the',
+            'what does the',
+            'show me the',
+            'find the',
+            'what are the deadlines',
+            'who is mentioned',
+            'what is the price',
+            'what is the cost',
+            'when is the deadline',
+            'summarize',
+            'insights',
+            'what documents'
+        ];
+        
+        // Check for SharePoint keywords
+        if (sharePointKeywords.some(keyword => lowerText.includes(keyword))) {
+            return true;
+        }
+        
+        // Check for document-related patterns
+        if (documentPatterns.some(pattern => lowerText.includes(pattern))) {
+            return true;
+        }
+        
+        return false;
+    }
+
+    // Handle general questions using Azure OpenAI
+    async handleGeneralQuestion(context, question) {
+        const { AIService } = require('./aiService');
+        const aiService = new AIService();
+        
+        try {
+            console.log(`🤖 Handling general question: "${question}"`);
+            
+            // Use Azure OpenAI for general knowledge questions
+            const response = await aiService.answerQuestion(question, '', 'General Knowledge');
+            
+            if (response && response.answer) {
+                await context.sendActivity(
+                    `🤖 **${response.answer}**\n\n` +
+                    `💡 *I can also search your SharePoint documents if you have questions about your files!*\n\n` +
+                    `📋 **Try commands like:**\n` +
+                    `• \`recent\` - See your recent files\n` +
+                    `• \`summarize [document]\` - AI summary\n` +
+                    `• Ask about your documents: "What's in the price changes file?"`
+                );
+            } else {
+                await context.sendActivity(
+                    `🤔 I'm having trouble answering that question right now.\n\n` +
+                    `💡 **I can help you with:**\n` +
+                    `• General questions (like ChatGPT)\n` +
+                    `• Your SharePoint documents\n` +
+                    `• Document analysis and insights\n\n` +
+                    `Try asking something else!`
+                );
+            }
+            
+        } catch (error) {
+            console.error('❌ General question error:', error);
+            await context.sendActivity(
+                `❌ Sorry, I encountered an error answering your question.\n\n` +
+                `💡 **I can still help you with:**\n` +
+                `• \`recent\` - See your SharePoint files\n` +
+                `• \`help\` - See all commands`
+            );
         }
     }
 }

@@ -54,9 +54,29 @@
   // Get recent documents from specific SharePoint site
   async getRecentDocuments() {
     try {
-      // Restore the original working approach - direct access to the specific site
+      console.log(`🎯 Attempting to access SharePoint with current token...`);
+      
+      // Try the most basic approach first - root site
+      try {
+        console.log(`🔄 Step 1: Trying root site access...`);
+        const rootSiteResponse = await this.request('/sites/root');
+        console.log(`✅ Root site accessible: ${rootSiteResponse.displayName}`);
+        
+        // Get files from root site
+        const rootDocsEndpoint = `/sites/${rootSiteResponse.id}/drive/root/children?$top=20`;
+        const rootDocsResponse = await this.request(rootDocsEndpoint);
+        
+        if (rootDocsResponse.value && rootDocsResponse.value.length > 0) {
+          console.log(`📄 Found ${rootDocsResponse.value.length} items in root site`);
+          return rootDocsResponse;
+        }
+      } catch (rootError) {
+        console.log(`❌ Root site access failed: ${rootError.message}`);
+      }
+      
+      // Try the specific JonoJohno site
       const siteUrl = 'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff';
-      console.log(`🎯 Targeting specific site: ${siteUrl}`);
+      console.log(`🔄 Step 2: Targeting specific site: ${siteUrl}`);
       
       const siteEndpoint = `/sites/${siteUrl}`;
       const siteResponse = await this.request(siteEndpoint);
