@@ -1,5 +1,4 @@
 // auth.js - Bot App Registration Authentication
-const { Client } = require('@azure/msal-node');
 const axios = require('axios');
 
 class BotAppAuth {
