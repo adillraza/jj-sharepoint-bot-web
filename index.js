@@ -9,8 +9,9 @@ const MICROSOFT_APP_ID = process.env.MicrosoftAppId || process.env.MicrosoftAppi
 const MICROSOFT_APP_PASSWORD = process.env.MicrosoftAppPassword || process.env.MicrosoftApppassword || "";
 const CONNECTION_NAME = process.env.ConnectionName || "GraphConnection";
 
-console.log('=== Bot Startup - FRESH DEPLOYMENT v2.0 ===');
+console.log('🔥🔥🔥 CACHE CLEARED - FRESH CODE v3.0 🔥🔥🔥');
 console.log(`🚀 DEPLOYMENT TIMESTAMP: ${new Date().toISOString()}`);
+console.log(`🆔 CACHE BUSTER ID: CLEAR-${Date.now()}`);
 console.log(`Node.js version: ${process.version}`);
 console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
 console.log(`MicrosoftAppId present: ${MICROSOFT_APP_ID ? 'YES' : 'NO'}`);
@@ -18,7 +19,7 @@ console.log(`MicrosoftAppId value: ${MICROSOFT_APP_ID ? MICROSOFT_APP_ID.substri
 console.log(`MicrosoftAppPassword present: ${MICROSOFT_APP_PASSWORD ? 'YES' : 'NO'}`);
 console.log(`ConnectionName: ${CONNECTION_NAME}`);
 console.log(`All Microsoft env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
-console.log('=== END STARTUP v2.0 ===');
+console.log('🔥🔥🔥 END FRESH CODE v3.0 🔥🔥🔥');
 
 // Create adapter with explicit validation
 if (!MICROSOFT_APP_ID || !MICROSOFT_APP_PASSWORD) {
