@@ -15,14 +15,22 @@ class MainDialog extends ComponentDialog {
   constructor() {
     super(DIALOG_ID);
 
-    this.addDialog(
-      new OAuthPrompt(OAUTH_PROMPT_ID, {
-        connectionName: CONNECTION_NAME,
-        text: "Please sign in to Microsoft 365 to access your SharePoint documents.",
-        title: "Sign in to Microsoft 365",
-        timeout: 300000 // 5 minutes
-      })
-    );
+    console.log('🔍 MainDialog constructor - CONNECTION_NAME:', CONNECTION_NAME);
+    console.log('🔍 MainDialog constructor - Creating OAuthPrompt...');
+
+    try {
+      this.addDialog(
+        new OAuthPrompt(OAUTH_PROMPT_ID, {
+          connectionName: CONNECTION_NAME,
+          text: "Please sign in to Microsoft 365 to access your SharePoint documents.",
+          title: "Sign in to Microsoft 365",
+          timeout: 300000 // 5 minutes
+        })
+      );
+      console.log('✅ MainDialog constructor - OAuthPrompt created successfully');
+    } catch (error) {
+      console.error('❌ MainDialog constructor - OAuthPrompt creation failed:', error);
+    }
 
     this.addDialog(
       new WaterfallDialog(WATERFALL_ID, [
@@ -36,7 +44,18 @@ class MainDialog extends ComponentDialog {
 
   async promptStep(step) {
     // Start OAuth flow
-    return await step.beginDialog(OAUTH_PROMPT_ID);
+    console.log('🔍 MainDialog promptStep - CONNECTION_NAME:', CONNECTION_NAME);
+    console.log('🔍 MainDialog promptStep - Starting OAuthPrompt...');
+    try {
+      const result = await step.beginDialog(OAUTH_PROMPT_ID);
+      console.log('✅ MainDialog promptStep - OAuthPrompt started successfully');
+      return result;
+    } catch (error) {
+      console.error('❌ MainDialog promptStep Error:', error);
+      console.error('❌ Error stack:', error.stack);
+      await step.context.sendActivity('❌ **OAuth Prompt Error**\n\nFailed to create sign-in prompt. Check configuration.');
+      return await step.endDialog();
+    }
   }
 
   async tokenStep(step) {

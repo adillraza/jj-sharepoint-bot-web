@@ -60,8 +60,21 @@ Type \`help\` to see all available commands!
                         if (lowerText === 'signin' || lowerText === 'login' || lowerText === 'connect') {
                 // Start the OAuth dialog (re-enabled with new client secret)
                 console.log('🔐 Starting OAuth dialog with new client secret...');
-                const dc = await this.dialogs.createContext(context);
-                await dc.beginDialog(DIALOG_ID);
+                console.log('🔍 CONNECTION_NAME:', CONNECTION_NAME);
+                console.log('🔍 CLIENT_ID:', CLIENT_ID);
+                console.log('🔍 TENANT_ID:', TENANT_ID);
+                console.log('🔍 DIALOG_ID:', DIALOG_ID);
+                
+                try {
+                    const dc = await this.dialogs.createContext(context);
+                    console.log('✅ Dialog context created successfully');
+                    await dc.beginDialog(DIALOG_ID);
+                    console.log('✅ Dialog started successfully');
+                } catch (error) {
+                    console.error('❌ OAuth Dialog Error:', error);
+                    console.error('❌ Error stack:', error.stack);
+                    await context.sendActivity('❌ **OAuth Error**\n\nFailed to start sign-in dialog. Check logs for details.');
+                }
             } else if (lowerText === 'token') {
                 // Try to get a cached token (re-enabled with new client secret)
                 try {
