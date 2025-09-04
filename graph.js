@@ -109,8 +109,8 @@
     }
   }
 
-  // Get document content (for text files)
-  async getDocumentContent(driveId, itemId) {
+  // Get document content (handles both text and binary files)
+  async getDocumentContent(driveId, itemId, asBinary = false) {
     const endpoint = `/drives/${driveId}/items/${itemId}/content`;
     try {
       await this.ensureToken();
@@ -118,11 +118,21 @@
         headers: {
           'Authorization': `Bearer ${this.accessToken}`
         },
-        responseType: 'text'
+        responseType: asBinary ? 'arraybuffer' : 'text',
+        timeout: 30000 // 30 second timeout
       });
+      
+      if (asBinary) {
+        return Buffer.from(response.data);
+      }
       return response.data;
     } catch (error) {
-      console.error(`Error getting document content: ${error.message}`);
+      console.error(`Error getting document content for ${itemId}: ${error.message}`);
+      if (error.response?.status === 413) {
+        console.error('File too large to process');
+      } else if (error.response?.status === 404) {
+        console.error('File not found or no permission');
+      }
       return null;
     }
   }

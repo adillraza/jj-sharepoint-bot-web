@@ -288,16 +288,49 @@ Type \`help\` to see all available commands!
                         continue;
                     }
                     
-                    // Get document content
-                    const content = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id);
-                    
-                    if (content && content.length > 50) {
-                        const answer = await docProcessor.answerQuestion(question, content, doc.name);
+                    // Get document content with better error handling
+                    try {
+                        console.log(`📥 Attempting to get content for: ${doc.name} (${doc.file?.mimeType || 'unknown type'})`);
                         
-                        if (answer.confidence > 0.2 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
-                            bestAnswer = answer;
+                        let content = null;
+                        
+                        // Check if it's a text-based file we can read
+                        const fileExtension = doc.name.split('.').pop()?.toLowerCase();
+                        const readableTypes = ['txt', 'md', 'csv', 'json', 'xml', 'html'];
+                        const mimeType = doc.file?.mimeType || '';
+                        
+                        if (readableTypes.includes(fileExtension) || mimeType.includes('text/')) {
+                            content = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, false);
+                        } else if (fileExtension === 'docx' || mimeType.includes('wordprocessingml')) {
+                            // For Word documents, get as binary
+                            const buffer = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, true);
+                            if (buffer) {
+                                content = await docProcessor.extractContent(buffer, doc.name);
+                            }
+                        } else if (fileExtension === 'pdf' || mimeType.includes('pdf')) {
+                            // For PDF documents, get as binary
+                            const buffer = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, true);
+                            if (buffer) {
+                                content = await docProcessor.extractContent(buffer, doc.name);
+                            }
+                        } else {
+                            console.log(`⏭️ Skipping unsupported file type: ${doc.name} (${fileExtension})`);
+                            continue;
                         }
-                        searchedDocs++;
+                        
+                        if (content && content.length > 50) {
+                            console.log(`✅ Successfully extracted ${content.length} characters from ${doc.name}`);
+                            const answer = await docProcessor.answerQuestion(question, content, doc.name);
+                            
+                            if (answer.confidence > 0.2 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
+                                bestAnswer = answer;
+                            }
+                            searchedDocs++;
+                        } else {
+                            console.log(`⚠️ No content extracted from ${doc.name} (length: ${content?.length || 0})`);
+                        }
+                    } catch (contentError) {
+                        console.log(`❌ Failed to extract content from ${doc.name}: ${contentError.message}`);
                     }
                 } catch (docError) {
                     console.log(`⚠️ Couldn't read ${doc.name}: ${docError.message}`);
