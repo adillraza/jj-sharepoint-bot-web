@@ -298,8 +298,8 @@ Type \`help\` to see all available commands!
             }
 
             let bestAnswer = null;
-            let searchedDocs = 0;
-            const maxDocsToSearch = 5; // Limit for performance
+                            let searchedDocs = 0;
+                const maxDocsToSearch = 2; // Reduce from 5 to 2 for F0 tier // Limit for performance
 
             await context.sendActivity(`🔍 Searching through your recent documents...`);
             
@@ -556,8 +556,16 @@ Type \`help\` to see all available commands!
         try {
             console.log(`🤖 Handling general question: "${question}"`);
             
-            // Use Azure OpenAI for general knowledge questions
-            const response = await aiService.answerQuestion(question, '', 'General Knowledge');
+            // Add timeout for F0 tier - 15 seconds max
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), 15000)
+            );
+            
+            // Use Azure OpenAI for general knowledge questions with timeout
+            const response = await Promise.race([
+                aiService.answerQuestion(question, '', 'General Knowledge'),
+                timeoutPromise
+            ]);
             
             if (response && response.answer) {
                 await context.sendActivity(
