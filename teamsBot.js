@@ -277,6 +277,10 @@ Type \`help\` to see all available commands!
             const maxDocsToSearch = 5; // Limit for performance
 
             await context.sendActivity(`🔍 Searching through your recent documents...`);
+            
+            // Debug: Show what documents we found
+            const docNames = recentDocs.value.map(doc => `${doc.name} (${doc.file?.mimeType || 'no mime type'})`).join(', ');
+            console.log(`📋 Documents found: ${docNames}`);
 
             for (const doc of recentDocs.value.slice(0, maxDocsToSearch)) {
                 try {
@@ -288,49 +292,53 @@ Type \`help\` to see all available commands!
                         continue;
                     }
                     
-                    // Get document content with better error handling
+                    // Simplified content extraction for debugging
                     try {
-                        console.log(`📥 Attempting to get content for: ${doc.name} (${doc.file?.mimeType || 'unknown type'})`);
+                        console.log(`📥 Attempting to get content for: ${doc.name}`);
+                        console.log(`📊 File details: size=${doc.size}, mimeType=${doc.file?.mimeType || 'unknown'}`);
                         
-                        let content = null;
+                        // Try to get content as text first (works for many file types)
+                        let content = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, false);
                         
-                        // Check if it's a text-based file we can read
-                        const fileExtension = doc.name.split('.').pop()?.toLowerCase();
-                        const readableTypes = ['txt', 'md', 'csv', 'json', 'xml', 'html'];
-                        const mimeType = doc.file?.mimeType || '';
-                        
-                        if (readableTypes.includes(fileExtension) || mimeType.includes('text/')) {
-                            content = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, false);
-                        } else if (fileExtension === 'docx' || mimeType.includes('wordprocessingml')) {
-                            // For Word documents, get as binary
-                            const buffer = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, true);
-                            if (buffer) {
-                                content = await docProcessor.extractContent(buffer, doc.name);
-                            }
-                        } else if (fileExtension === 'pdf' || mimeType.includes('pdf')) {
-                            // For PDF documents, get as binary
-                            const buffer = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, true);
-                            if (buffer) {
-                                content = await docProcessor.extractContent(buffer, doc.name);
-                            }
-                        } else {
-                            console.log(`⏭️ Skipping unsupported file type: ${doc.name} (${fileExtension})`);
-                            continue;
-                        }
-                        
-                        if (content && content.length > 50) {
-                            console.log(`✅ Successfully extracted ${content.length} characters from ${doc.name}`);
-                            const answer = await docProcessor.answerQuestion(question, content, doc.name);
+                        if (content && typeof content === 'string' && content.length > 10) {
+                            console.log(`✅ Got ${content.length} characters from ${doc.name}`);
+                            console.log(`📝 First 200 chars: ${content.substring(0, 200)}...`);
                             
-                            if (answer.confidence > 0.2 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
+                            const answer = await docProcessor.answerQuestion(question, content, doc.name);
+                            console.log(`🎯 Answer confidence: ${answer.confidence} for ${doc.name}`);
+                            
+                            if (answer.confidence > 0.1 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
                                 bestAnswer = answer;
+                                console.log(`🏆 New best answer from ${doc.name}`);
                             }
                             searchedDocs++;
                         } else {
-                            console.log(`⚠️ No content extracted from ${doc.name} (length: ${content?.length || 0})`);
+                            console.log(`❌ No usable content from ${doc.name} (type: ${typeof content}, length: ${content?.length || 0})`);
+                            
+                            // Try as binary for office documents
+                            const fileExtension = doc.name.split('.').pop()?.toLowerCase();
+                            if (['docx', 'pdf', 'xlsx', 'pptx'].includes(fileExtension)) {
+                                console.log(`🔄 Trying binary extraction for ${doc.name}`);
+                                try {
+                                    const buffer = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, true);
+                                    if (buffer) {
+                                        content = await docProcessor.extractContent(buffer, doc.name);
+                                        if (content && content.length > 10) {
+                                            console.log(`✅ Binary extraction successful: ${content.length} characters`);
+                                            const answer = await docProcessor.answerQuestion(question, content, doc.name);
+                                            if (answer.confidence > 0.1 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
+                                                bestAnswer = answer;
+                                            }
+                                            searchedDocs++;
+                                        }
+                                    }
+                                } catch (binaryError) {
+                                    console.log(`❌ Binary extraction failed: ${binaryError.message}`);
+                                }
+                            }
                         }
                     } catch (contentError) {
-                        console.log(`❌ Failed to extract content from ${doc.name}: ${contentError.message}`);
+                        console.log(`❌ Failed to get content from ${doc.name}: ${contentError.message}`);
                     }
                 } catch (docError) {
                     console.log(`⚠️ Couldn't read ${doc.name}: ${docError.message}`);
@@ -338,7 +346,13 @@ Type \`help\` to see all available commands!
                 }
             }
 
-            if (bestAnswer && bestAnswer.confidence > 0.2) {
+            // Debug: Show what we found
+            console.log(`🔍 Final results: searchedDocs=${searchedDocs}, bestAnswer=${bestAnswer ? 'YES' : 'NO'}`);
+            if (bestAnswer) {
+                console.log(`🏆 Best answer confidence: ${bestAnswer.confidence} from ${bestAnswer.documentName}`);
+            }
+
+            if (bestAnswer && bestAnswer.confidence > 0.1) {
                 await context.sendActivity(
                     `🎯 **Here's what I found:**\n\n` +
                     `${bestAnswer.answer}\n\n` +
@@ -347,15 +361,24 @@ Type \`help\` to see all available commands!
                     `🔍 *Searched ${searchedDocs} documents*\n\n` +
                     `💡 **Want to know more?** Ask me another question about your documents!`
                 );
+            } else if (searchedDocs > 0) {
+                await context.sendActivity(
+                    `🔍 I searched ${searchedDocs} documents but couldn't find a confident answer to "${question}".\n\n` +
+                    `📋 **Documents I checked:**\n${recentDocs.value.slice(0, searchedDocs).map(doc => `• ${doc.name}`).join('\n')}\n\n` +
+                    `💡 **Try:**\n` +
+                    `• More specific questions\n` +
+                    `• Keywords that might be in your documents\n` +
+                    `• Questions like "what is the deadline?" or "who is mentioned?"`
+                );
             } else {
                 await context.sendActivity(
-                    `🤷‍♂️ I couldn't find a good answer to "${question}" in your recent documents.\n\n` +
-                    `📊 Searched ${searchedDocs} documents\n\n` +
-                    `💡 **Try:**\n` +
-                    `• Ask more specific questions\n` +
-                    `• Use keywords from your documents\n` +
-                    `• Use \`search [keyword]\` to find relevant files first\n` +
-                    `• Try questions like "what is the deadline?" or "who is the contact person?"`
+                    `❌ I found ${recentDocs.value?.length || 0} documents but couldn't extract content from any of them.\n\n` +
+                    `📋 **Documents found:**\n${recentDocs.value?.slice(0, 5).map(doc => `• ${doc.name} (${doc.file?.mimeType || 'unknown type'})`).join('\n') || 'None'}\n\n` +
+                    `🔧 **This might be due to:**\n` +
+                    `• File format limitations\n` +
+                    `• Permission issues\n` +
+                    `• Large file sizes\n\n` +
+                    `💡 **Try:** \`recent\` to see your files, then ask about specific document names.`
                 );
             }
 
