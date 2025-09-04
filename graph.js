@@ -54,64 +54,13 @@
   // Get recent documents from specific SharePoint site
   async getRecentDocuments() {
     try {
-      console.log(`🎯 Attempting to connect to SharePoint...`);
+      // Restore the original working approach - direct access to the specific site
+      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff';
+      console.log(`🎯 Targeting specific site: ${siteUrl}`);
       
-      // Skip site enumeration and try direct access to root SharePoint
-      let siteResponse = null;
-      
-      // Try different approaches in order of preference
-      const approaches = [
-        {
-          name: 'Root SharePoint site',
-          endpoint: '/sites/root'
-        },
-        {
-          name: 'Default drive',
-          endpoint: '/me/drive',
-          isUserDrive: true
-        },
-        {
-          name: 'Specific JonoJohno site',
-          endpoint: '/sites/jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff'
-        },
-        {
-          name: 'Alternative JonoJohno site',
-          endpoint: '/sites/jonoandjohno.sharepoint.com:/sites/JonoAndJohno-allstaff'
-        }
-      ];
-      
-      for (const approach of approaches) {
-        try {
-          console.log(`🔄 Trying approach: ${approach.name}`);
-          
-          if (approach.isUserDrive) {
-            // For user drive, get drive directly
-            const driveResponse = await this.request(approach.endpoint);
-            console.log(`✅ Connected to user drive: ${driveResponse.name || 'OneDrive'}`);
-            
-            // Get recent files from user's OneDrive
-            const recentEndpoint = '/me/drive/recent';
-            const recentResponse = await this.request(recentEndpoint);
-            console.log(`📄 Found ${recentResponse.value?.length || 0} recent files in OneDrive`);
-            return recentResponse;
-            
-          } else {
-            // For SharePoint sites
-            siteResponse = await this.request(approach.endpoint);
-            console.log(`✅ Connected to site: ${siteResponse.displayName || siteResponse.name}`);
-            break;
-          }
-          
-        } catch (error) {
-          console.log(`❌ ${approach.name} failed: ${error.message}`);
-        }
-      }
-      
-      if (!siteResponse) {
-        throw new Error('Could not connect to any SharePoint site or OneDrive');
-      }
-      
-      console.log(`✅ Using SharePoint site: ${siteResponse.displayName}`);
+      const siteEndpoint = `/sites/${siteUrl}`;
+      const siteResponse = await this.request(siteEndpoint);
+      console.log(`✅ Found site: ${siteResponse.displayName}`);
       
       // Get documents from the site's document library
       const documentsEndpoint = `/sites/${siteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc&$expand=children($top=5)`;
