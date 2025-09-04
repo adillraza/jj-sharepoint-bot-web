@@ -51,30 +51,60 @@
     return await this.request(endpoint);
   }
 
-  // Get recent documents from SharePoint sites (using application permissions)
+  // Get recent documents from specific SharePoint site
   async getRecentDocuments() {
     try {
-      // First, get all sites
-      const sitesEndpoint = '/sites?$top=10';
-      const sitesResponse = await this.request(sitesEndpoint);
+      // Target the specific JonoJohno-allstaff site
+      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff';
+      console.log(`🎯 Targeting specific site: ${siteUrl}`);
       
-      if (!sitesResponse.value || sitesResponse.value.length === 0) {
-        return { value: [] };
-      }
-
-      // Get documents from the first available site
-      const firstSite = sitesResponse.value[0];
-      const documentsEndpoint = `/sites/${firstSite.id}/drive/root/children?$top=10&$orderby=lastModifiedDateTime desc`;
-      return await this.request(documentsEndpoint);
+      // Get the specific site
+      const siteEndpoint = `/sites/${siteUrl}`;
+      const siteResponse = await this.request(siteEndpoint);
+      console.log(`✅ Found site: ${siteResponse.displayName}`);
+      
+      // Get documents from the site's document library
+      const documentsEndpoint = `/sites/${siteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc`;
+      const documentsResponse = await this.request(documentsEndpoint);
+      
+      console.log(`📄 Found ${documentsResponse.value?.length || 0} items in the site`);
+      return documentsResponse;
+      
     } catch (error) {
-      console.error('Error getting recent documents:', error.message);
-      // Fallback: try to get from root site
+      console.error('Error getting documents from JonoJohno-allstaff site:', error.message);
+      
+      // Fallback: try alternative site URL format
       try {
-        const rootSiteEndpoint = '/sites/root/drive/root/children?$top=10&$orderby=lastModifiedDateTime desc';
-        return await this.request(rootSiteEndpoint);
+        console.log('🔄 Trying alternative site URL format...');
+        const altSiteEndpoint = '/sites/jonoandjohno.sharepoint.com,/sites/JonoJohno-allstaff';
+        const altSiteResponse = await this.request(altSiteEndpoint);
+        
+        const documentsEndpoint = `/sites/${altSiteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc`;
+        return await this.request(documentsEndpoint);
+        
       } catch (fallbackError) {
-        console.error('Fallback also failed:', fallbackError.message);
-        throw error;
+        console.error('Alternative format also failed:', fallbackError.message);
+        
+        // Final fallback: search all sites for the one we want
+        try {
+          console.log('🔍 Searching all sites for JonoJohno-allstaff...');
+          const allSitesEndpoint = '/sites?$filter=displayName eq \'JonoJohno-allstaff\' or name eq \'JonoJohno-allstaff\'&$top=10';
+          const sitesResponse = await this.request(allSitesEndpoint);
+          
+          if (sitesResponse.value && sitesResponse.value.length > 0) {
+            const targetSite = sitesResponse.value[0];
+            console.log(`🎯 Found target site: ${targetSite.displayName}`);
+            
+            const documentsEndpoint = `/sites/${targetSite.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc`;
+            return await this.request(documentsEndpoint);
+          } else {
+            console.log('❌ Could not find JonoJohno-allstaff site');
+            throw new Error('Could not find the JonoJohno-allstaff SharePoint site');
+          }
+        } catch (finalError) {
+          console.error('Final fallback failed:', finalError.message);
+          throw error;
+        }
       }
     }
   }
@@ -83,6 +113,7 @@
   async getDocumentContent(driveId, itemId) {
     const endpoint = `/drives/${driveId}/items/${itemId}/content`;
     try {
+      await this.ensureToken();
       const response = await axios.get(`${this.baseURL}${endpoint}`, {
         headers: {
           'Authorization': `Bearer ${this.accessToken}`
@@ -91,7 +122,32 @@
       });
       return response.data;
     } catch (error) {
-      throw new Error(`Failed to get document content: ${error.message}`);
+      console.error(`Error getting document content: ${error.message}`);
+      return null;
+    }
+  }
+
+  // Search documents in the JonoJohno-allstaff site
+  async searchDocumentsInSite(query) {
+    try {
+      // Target the specific JonoJohno-allstaff site
+      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff';
+      console.log(`🔍 Searching in site: ${siteUrl} for query: "${query}"`);
+      
+      // Get the specific site
+      const siteEndpoint = `/sites/${siteUrl}`;
+      const siteResponse = await this.request(siteEndpoint);
+      
+      // Search within the site
+      const searchEndpoint = `/sites/${siteResponse.id}/drive/root/search(q='${encodeURIComponent(query)}')?$top=20`;
+      const searchResults = await this.request(searchEndpoint);
+      
+      console.log(`🎯 Search found ${searchResults.value?.length || 0} results`);
+      return searchResults;
+      
+    } catch (error) {
+      console.error('Error searching in JonoJohno-allstaff site:', error.message);
+      throw error;
     }
   }
 
