@@ -248,7 +248,88 @@ Type \`help\` to see all available commands!
         }
 
         // Default: treat as a question about documents
-        await context.sendActivity(`💭 I understand you're asking: "${text}"\n\n🚧 **Document Q&A is coming soon!**\n\nFor now, try:\n• \`recent\` - See your recent files\n• \`search [keyword]\` - Find documents\n• \`help\` - See all commands`);
+        try {
+            await context.sendActivity(`🤔 Let me search your SharePoint documents to answer: "${text}"`);
+            await this.handleDocumentQuestion(context, text, graphClient);
+        } catch (error) {
+            console.error('Error handling document question:', error);
+            await context.sendActivity(`❌ I couldn't process your question right now.\n\n💡 Try:\n• \`recent\` - See your recent files\n• \`search [keyword]\` - Find documents\n• \`help\` - See all commands`);
+        }
+    }
+
+    async handleDocumentQuestion(context, question, graphClient) {
+        const { DocumentProcessor } = require('./documentProcessor');
+        const docProcessor = new DocumentProcessor();
+        
+        try {
+            console.log(`🤔 Processing question: "${question}"`);
+            
+            // Get recent documents to search through
+            const recentDocs = await graphClient.getRecentDocuments();
+            
+            if (!recentDocs.value || recentDocs.value.length === 0) {
+                await context.sendActivity('📂 I couldn\'t find any recent documents to search through. Try uploading some documents to SharePoint first.');
+                return;
+            }
+
+            let bestAnswer = null;
+            let searchedDocs = 0;
+            const maxDocsToSearch = 5; // Limit for performance
+
+            await context.sendActivity(`🔍 Searching through your recent documents...`);
+
+            for (const doc of recentDocs.value.slice(0, maxDocsToSearch)) {
+                try {
+                    console.log(`📄 Checking document: ${doc.name}`);
+                    
+                    // Skip folders
+                    if (doc.folder) {
+                        console.log(`⏭️ Skipping folder: ${doc.name}`);
+                        continue;
+                    }
+                    
+                    // Get document content
+                    const content = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id);
+                    
+                    if (content && content.length > 50) {
+                        const answer = await docProcessor.answerQuestion(question, content, doc.name);
+                        
+                        if (answer.confidence > 0.2 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
+                            bestAnswer = answer;
+                        }
+                        searchedDocs++;
+                    }
+                } catch (docError) {
+                    console.log(`⚠️ Couldn't read ${doc.name}: ${docError.message}`);
+                    // Continue with other documents
+                }
+            }
+
+            if (bestAnswer && bestAnswer.confidence > 0.2) {
+                await context.sendActivity(
+                    `🎯 **Here's what I found:**\n\n` +
+                    `${bestAnswer.answer}\n\n` +
+                    `📊 **Confidence:** ${Math.round(bestAnswer.confidence * 100)}%\n` +
+                    `📁 **Source:** ${bestAnswer.documentName}\n` +
+                    `🔍 *Searched ${searchedDocs} documents*\n\n` +
+                    `💡 **Want to know more?** Ask me another question about your documents!`
+                );
+            } else {
+                await context.sendActivity(
+                    `🤷‍♂️ I couldn't find a good answer to "${question}" in your recent documents.\n\n` +
+                    `📊 Searched ${searchedDocs} documents\n\n` +
+                    `💡 **Try:**\n` +
+                    `• Ask more specific questions\n` +
+                    `• Use keywords from your documents\n` +
+                    `• Use \`search [keyword]\` to find relevant files first\n` +
+                    `• Try questions like "what is the deadline?" or "who is the contact person?"`
+                );
+            }
+
+        } catch (error) {
+            console.error('❌ Document Q&A error:', error);
+            await context.sendActivity('❌ Sorry, I encountered an error while searching your documents. Please try again.');
+        }
     }
 }
 

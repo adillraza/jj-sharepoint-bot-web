@@ -80,7 +80,8 @@ class DocumentProcessor {
             };
         }
 
-        const answer = topSentences.map(s => s.text).join(' ');
+        // Generate a more conversational answer
+        const answer = this.generateConversationalAnswer(question, topSentences, documentName);
         const confidence = topSentences[0].relevance;
 
         return {
@@ -89,6 +90,62 @@ class DocumentProcessor {
             sources: [`${documentName} (${topSentences.length} relevant passages found)`],
             documentName: documentName
         };
+    }
+
+    generateConversationalAnswer(question, topSentences, documentName) {
+        const lowerQuestion = question.toLowerCase();
+        const context = topSentences.map(s => s.text).join(' ');
+        
+        // Question type detection for better responses
+        if (lowerQuestion.includes('what is') || lowerQuestion.includes('what are')) {
+            return `Based on ${documentName}, here's what I found:\n\n${context}`;
+        } 
+        
+        if (lowerQuestion.includes('when') || lowerQuestion.includes('date')) {
+            const datePattern = /\b\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}\b|\b(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},?\s+\d{4}\b/gi;
+            const dates = context.match(datePattern);
+            if (dates && dates.length > 0) {
+                return `📅 **Dates found in ${documentName}:**\n${dates.join(', ')}\n\n**Context:** ${context}`;
+            }
+        }
+        
+        if (lowerQuestion.includes('how much') || lowerQuestion.includes('cost') || lowerQuestion.includes('price') || lowerQuestion.includes('budget')) {
+            const moneyPattern = /\$[\d,]+\.?\d*|\b\d+\.\d{2}\b|\b\d{1,3}(,\d{3})*\s*(dollars?|usd|aud)\b/gi;
+            const money = context.match(moneyPattern);
+            if (money && money.length > 0) {
+                return `💰 **Financial information from ${documentName}:**\n${money.join(', ')}\n\n**Details:** ${context}`;
+            }
+        }
+        
+        if (lowerQuestion.includes('who') || lowerQuestion.includes('person') || lowerQuestion.includes('contact')) {
+            const namePattern = /\b[A-Z][a-z]+ [A-Z][a-z]+\b/g;
+            const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/g;
+            const names = context.match(namePattern) || [];
+            const emails = context.match(emailPattern) || [];
+            
+            if (names.length > 0 || emails.length > 0) {
+                let response = `👥 **People mentioned in ${documentName}:**\n`;
+                if (names.length > 0) response += `Names: ${names.join(', ')}\n`;
+                if (emails.length > 0) response += `Emails: ${emails.join(', ')}\n`;
+                response += `\n**Context:** ${context}`;
+                return response;
+            }
+        }
+        
+        if (lowerQuestion.includes('summary') || lowerQuestion.includes('summarize')) {
+            return `📋 **Summary from ${documentName}:**\n\n${context}\n\n*This summary is based on the most relevant sections of the document.*`;
+        }
+        
+        if (lowerQuestion.includes('deadline') || lowerQuestion.includes('due date')) {
+            const deadlinePattern = /(deadline|due date|expires?|by)\s+([^.!?]+)/gi;
+            const deadlines = context.match(deadlinePattern);
+            if (deadlines && deadlines.length > 0) {
+                return `⏰ **Deadlines from ${documentName}:**\n${deadlines.join('\n')}\n\n**Full context:** ${context}`;
+            }
+        }
+        
+        // Default conversational response
+        return `📄 **From ${documentName}:**\n\n${context}\n\n*I found this information that seems relevant to your question. Would you like me to search for anything more specific?*`;
     }
 
     // Enhanced Q&A with Azure OpenAI (for later implementation)
