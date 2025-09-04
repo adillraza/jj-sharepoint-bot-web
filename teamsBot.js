@@ -379,14 +379,20 @@ Type \`help\` to see all available commands!
             }
 
             if (bestAnswer && bestAnswer.confidence > 0.1) {
-                await context.sendActivity(
-                    `🎯 **Here's what I found:**\n\n` +
-                    `${bestAnswer.answer}\n\n` +
-                    `📊 **Confidence:** ${Math.round(bestAnswer.confidence * 100)}%\n` +
-                    `📁 **Source:** ${bestAnswer.documentName}\n` +
-                    `🔍 *Searched ${searchedDocs} documents*\n\n` +
-                    `💡 **Want to know more?** Ask me another question about your documents!`
-                );
+                try {
+                    await context.sendActivity(
+                        `🎯 **Here's what I found:**\n\n` +
+                        `${bestAnswer.answer}\n\n` +
+                        `📊 **Confidence:** ${Math.round(bestAnswer.confidence * 100)}%\n` +
+                        `📁 **Source:** ${bestAnswer.documentName}\n` +
+                        `🔍 *Searched ${searchedDocs} documents*\n\n` +
+                        `💡 **Want to know more?** Ask me another question about your documents!`
+                    );
+                    console.log(`✅ Successfully sent answer to user`);
+                } catch (sendError) {
+                    console.error(`❌ Failed to send answer to user:`, sendError);
+                    await context.sendActivity(`✅ I found an answer but had trouble sending it. Please try asking again.`);
+                }
             } else if (searchedDocs > 0) {
                 await context.sendActivity(
                     `🔍 I searched ${searchedDocs} documents but couldn't find a confident answer to "${question}".\n\n` +
