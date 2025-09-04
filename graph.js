@@ -64,11 +64,37 @@
       console.log(`✅ Found site: ${siteResponse.displayName}`);
       
       // Get documents from the site's document library
-      const documentsEndpoint = `/sites/${siteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc`;
+      const documentsEndpoint = `/sites/${siteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc&$expand=children($top=5)`;
       const documentsResponse = await this.request(documentsEndpoint);
       
       console.log(`📄 Found ${documentsResponse.value?.length || 0} items in the site`);
-      return documentsResponse;
+      
+      // Also try to get more files by looking in subfolders
+      const allFiles = [];
+      if (documentsResponse.value) {
+        for (const item of documentsResponse.value) {
+          if (item.file) {
+            // It's a file, add it
+            allFiles.push(item);
+          } else if (item.folder && !item.name.startsWith('.')) {
+            // It's a folder, get files from it
+            try {
+              console.log(`🔍 Looking inside folder: ${item.name}`);
+              const folderFilesEndpoint = `/sites/${siteResponse.id}/drive/items/${item.id}/children?$top=10&$filter=file ne null`;
+              const folderFiles = await this.request(folderFilesEndpoint);
+              if (folderFiles.value) {
+                allFiles.push(...folderFiles.value);
+                console.log(`📁 Found ${folderFiles.value.length} files in ${item.name}`);
+              }
+            } catch (folderError) {
+              console.log(`❌ Couldn't access folder ${item.name}: ${folderError.message}`);
+            }
+          }
+        }
+      }
+      
+      console.log(`📄 Total files found: ${allFiles.length}`);
+      return { value: allFiles };
       
     } catch (error) {
       console.error('Error getting documents from JonoJohno-allstaff site:', error.message);
