@@ -139,31 +139,33 @@ Type \`help\` to see all available commands!
         // Help command
         if (lowerText === 'help' || lowerText === 'commands') {
             const helpText = `
-**📋 SharePoint Document Assistant Commands:**
-
-**🔐 Authentication:**
-• \`signin\` - Sign in to Microsoft 365
-• \`logout\` - Sign out
+**🤖 AI-Powered SharePoint Assistant Commands:**
 
 **📁 Document Discovery:**
 • \`recent\` - Show recent documents
 • \`search [query]\` - Search SharePoint documents
-• \`find [filename]\` - Find specific files
 
-**📄 Document Actions:**
-• \`read [filename]\` - Read document content
-• \`open [filename]\` - Get document link
+**🤖 AI-Powered Features:**
+• Ask any question about your documents!
+• \`summarize [document]\` - Get AI summary of a document
+• \`insights [document]\` - Get AI insights from a document
 
-**❓ Q&A:**
-• Just ask questions about your documents!
-• "What's in the project plan?"
-• "Show me budget documents"
-• "Find Excel files about sales"
+**❓ Smart Q&A Examples:**
+• "What is in the price changes document?"
+• "What are the key deadlines?"
+• "Who are the contacts mentioned?"
+• "Summarize the policies and procedures"
+• "Give me insights on product resources"
 
-**💡 Examples:**
-• \`recent\` - See your latest files
-• \`search budget\` - Find budget-related docs
-• \`read project-plan.docx\` - Read document content
+**🔧 System:**
+• \`test\` - Check bot functionality
+• \`logout\` - Sign out from Microsoft 365
+
+**💡 AI Features:**
+✅ Smart document summarization
+✅ Intelligent insights extraction
+✅ Context-aware question answering
+✅ Pattern recognition (dates, money, contacts)
             `;
             
             await context.sendActivity(helpText);
@@ -247,6 +249,19 @@ Type \`help\` to see all available commands!
             return;
         }
 
+        // AI Commands
+        if (lowerText.startsWith('summarize ') || lowerText.startsWith('summary ')) {
+            const docName = text.substring(text.indexOf(' ') + 1).trim();
+            await this.handleSummarizeCommand(context, docName, graphClient);
+            return;
+        }
+        
+        if (lowerText.startsWith('insights ') || lowerText.startsWith('insight ')) {
+            const docName = text.substring(text.indexOf(' ') + 1).trim();
+            await this.handleInsightsCommand(context, docName, graphClient);
+            return;
+        }
+
         // Default: treat as a question about documents
         try {
             await context.sendActivity(`🤔 Let me search your SharePoint documents to answer: "${text}"`);
@@ -304,8 +319,9 @@ Type \`help\` to see all available commands!
                             console.log(`✅ Got ${content.length} characters from ${doc.name}`);
                             console.log(`📝 First 200 chars: ${content.substring(0, 200)}...`);
                             
-                            const answer = await docProcessor.answerQuestion(question, content, doc.name);
-                            console.log(`🎯 Answer confidence: ${answer.confidence} for ${doc.name}`);
+                            // Use enhanced AI-powered Q&A
+                            const answer = await docProcessor.answerQuestionEnhanced(question, content, doc.name);
+                            console.log(`🎯 Answer confidence: ${answer.confidence} for ${doc.name} (method: ${answer.method || 'standard'})`);
                             
                             if (answer.confidence > 0.1 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
                                 bestAnswer = answer;
@@ -385,6 +401,92 @@ Type \`help\` to see all available commands!
         } catch (error) {
             console.error('❌ Document Q&A error:', error);
             await context.sendActivity('❌ Sorry, I encountered an error while searching your documents. Please try again.');
+        }
+    }
+
+    async handleSummarizeCommand(context, docName, graphClient) {
+        const { DocumentProcessor } = require('./documentProcessor');
+        const docProcessor = new DocumentProcessor();
+
+        try {
+            await context.sendActivity(`📝 Generating AI summary for "${docName}"...`);
+            
+            // Find the document
+            const recentDocs = await graphClient.getRecentDocuments();
+            const targetDoc = recentDocs.value?.find(doc => 
+                doc.name.toLowerCase().includes(docName.toLowerCase())
+            );
+
+            if (!targetDoc) {
+                await context.sendActivity(`❌ Document "${docName}" not found.\n\n💡 Try: \`recent\` to see available documents.`);
+                return;
+            }
+
+            // Get document content
+            const content = await graphClient.getDocumentContent(targetDoc.parentReference.driveId, targetDoc.id, false);
+            
+            if (!content || content.length < 50) {
+                await context.sendActivity(`❌ Couldn't extract content from "${targetDoc.name}". The file might be empty or in an unsupported format.`);
+                return;
+            }
+
+            // Generate AI summary
+            const summary = await docProcessor.generateSummary(content, targetDoc.name);
+            
+            await context.sendActivity(
+                `📝 **AI Summary of "${targetDoc.name}":**\n\n` +
+                `${summary.summary}\n\n` +
+                `🤖 **Generated by:** ${summary.source}\n` +
+                `📊 **Confidence:** ${Math.round(summary.confidence * 100)}%\n\n` +
+                `💡 **Want more details?** Ask specific questions about this document!`
+            );
+
+        } catch (error) {
+            console.error('❌ Summarize error:', error);
+            await context.sendActivity(`❌ Error generating summary: ${error.message}`);
+        }
+    }
+
+    async handleInsightsCommand(context, docName, graphClient) {
+        const { DocumentProcessor } = require('./documentProcessor');
+        const docProcessor = new DocumentProcessor();
+
+        try {
+            await context.sendActivity(`💡 Generating AI insights for "${docName}"...`);
+            
+            // Find the document
+            const recentDocs = await graphClient.getRecentDocuments();
+            const targetDoc = recentDocs.value?.find(doc => 
+                doc.name.toLowerCase().includes(docName.toLowerCase())
+            );
+
+            if (!targetDoc) {
+                await context.sendActivity(`❌ Document "${docName}" not found.\n\n💡 Try: \`recent\` to see available documents.`);
+                return;
+            }
+
+            // Get document content
+            const content = await graphClient.getDocumentContent(targetDoc.parentReference.driveId, targetDoc.id, false);
+            
+            if (!content || content.length < 50) {
+                await context.sendActivity(`❌ Couldn't extract content from "${targetDoc.name}". The file might be empty or in an unsupported format.`);
+                return;
+            }
+
+            // Generate AI insights
+            const insights = await docProcessor.generateInsights(content, targetDoc.name);
+            
+            await context.sendActivity(
+                `💡 **AI Insights for "${targetDoc.name}":**\n\n` +
+                `${insights.insights}\n\n` +
+                `🤖 **Generated by:** ${insights.source}\n` +
+                `📊 **Confidence:** ${Math.round(insights.confidence * 100)}%\n\n` +
+                `💡 **Need more analysis?** Ask specific questions about this document!`
+            );
+
+        } catch (error) {
+            console.error('❌ Insights error:', error);
+            await context.sendActivity(`❌ Error generating insights: ${error.message}`);
         }
     }
 }

@@ -1,11 +1,12 @@
 // documentProcessor.js - Document Content Extraction and Q&A
 const mammoth = require('mammoth');
 const pdf = require('pdf-parse');
+const { AIService } = require('./aiService');
 
 class DocumentProcessor {
     constructor() {
-        // For now, we'll use a simple text-based Q&A
-        // Later we can integrate with Azure OpenAI or other AI services
+        this.aiService = new AIService();
+        console.log('📖 DocumentProcessor initialized with AI capabilities');
     }
 
     async extractTextFromDocument(buffer, mimeType, fileName) {
@@ -148,11 +149,59 @@ class DocumentProcessor {
         return `📄 **From ${documentName}:**\n\n${context}\n\n*I found this information that seems relevant to your question. Would you like me to search for anything more specific?*`;
     }
 
-    // Enhanced Q&A with Azure OpenAI (for later implementation)
+    // AI-powered question answering
     async answerQuestionWithAI(question, documentText, documentName) {
-        // This would integrate with Azure OpenAI
-        // For now, fall back to simple keyword matching
-        return await this.answerQuestion(question, documentText, documentName);
+        console.log(`🤖 Using AI to answer: "${question}" from ${documentName}`);
+        return await this.aiService.answerQuestion(question, documentText, documentName);
+    }
+
+    // Generate AI-powered document summary
+    async generateSummary(documentText, documentName) {
+        console.log(`📝 Generating AI summary for ${documentName}`);
+        return await this.aiService.generateSummary(documentText, documentName);
+    }
+
+    // Generate AI-powered insights
+    async generateInsights(documentText, documentName) {
+        console.log(`💡 Generating AI insights for ${documentName}`);
+        return await this.aiService.generateInsights(documentText, documentName);
+    }
+
+    // Enhanced answer that combines keyword matching with AI
+    async answerQuestionEnhanced(question, documentText, documentName) {
+        try {
+            // First try AI-powered answer
+            const aiAnswer = await this.answerQuestionWithAI(question, documentText, documentName);
+            
+            // If AI confidence is good, return AI answer
+            if (aiAnswer.confidence > 0.7) {
+                return {
+                    ...aiAnswer,
+                    method: 'AI-powered'
+                };
+            }
+            
+            // Otherwise, try keyword matching as fallback
+            const keywordAnswer = await this.answerQuestion(question, documentText, documentName);
+            
+            // Return the better of the two
+            if (keywordAnswer.confidence > aiAnswer.confidence) {
+                return {
+                    ...keywordAnswer,
+                    method: 'Keyword matching'
+                };
+            }
+            
+            return {
+                ...aiAnswer,
+                method: 'AI-powered (low confidence)'
+            };
+            
+        } catch (error) {
+            console.error('Enhanced Q&A failed:', error.message);
+            // Fall back to basic keyword matching
+            return await this.answerQuestion(question, documentText, documentName);
+        }
     }
 
     // Extract key information from documents
