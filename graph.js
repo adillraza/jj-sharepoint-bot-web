@@ -54,14 +54,72 @@
   // Get recent documents from specific SharePoint site
   async getRecentDocuments() {
     try {
-      // Target the specific JonoJohno-allstaff site
-      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff';
-      console.log(`🎯 Targeting specific site: ${siteUrl}`);
+      // Try multiple approaches to find the SharePoint site
+      console.log(`🎯 Attempting to connect to SharePoint...`);
       
-      // Get the specific site
-      const siteEndpoint = `/sites/${siteUrl}`;
-      const siteResponse = await this.request(siteEndpoint);
-      console.log(`✅ Found site: ${siteResponse.displayName}`);
+      // First, try to get all sites to see what's available
+      let siteResponse = null;
+      
+      try {
+        console.log(`🔍 Step 1: Getting all available sites...`);
+        const allSitesResponse = await this.request('/sites?$top=10');
+        console.log(`📋 Found ${allSitesResponse.value?.length || 0} sites available`);
+        
+        if (allSitesResponse.value && allSitesResponse.value.length > 0) {
+          console.log(`📋 Available sites:`);
+          allSitesResponse.value.forEach((site, i) => {
+            console.log(`  ${i + 1}. ${site.displayName} - ${site.webUrl}`);
+          });
+          
+          // Look for JonoJohno site
+          const targetSite = allSitesResponse.value.find(site => 
+            site.displayName?.toLowerCase().includes('jono') || 
+            site.webUrl?.toLowerCase().includes('jono') ||
+            site.webUrl?.toLowerCase().includes('allstaff')
+          );
+          
+          if (targetSite) {
+            console.log(`✅ Found target site: ${targetSite.displayName}`);
+            siteResponse = targetSite;
+          } else {
+            console.log(`⚠️ No JonoJohno site found, using first available site: ${allSitesResponse.value[0].displayName}`);
+            siteResponse = allSitesResponse.value[0];
+          }
+        } else {
+          throw new Error('No sites found');
+        }
+      } catch (sitesError) {
+        console.log(`❌ Couldn't get sites list: ${sitesError.message}`);
+        
+        // Fallback: Try specific site URL formats
+        const siteUrls = [
+          'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff',
+          'jonoandjohno.sharepoint.com,80ee117e-949a-4cc2-9d56-b0c4923a47f2,c9a6ce8e-ff75-4451-8666-7c4f5ee30d34',
+          'jonoandjohno.sharepoint.com:/sites/JonoAndJohno-allstaff'
+        ];
+        
+        for (const siteUrl of siteUrls) {
+          try {
+            console.log(`🔄 Trying site URL: ${siteUrl}`);
+            const siteEndpoint = `/sites/${siteUrl}`;
+            siteResponse = await this.request(siteEndpoint);
+            console.log(`✅ Successfully connected to: ${siteResponse.displayName}`);
+            break;
+          } catch (urlError) {
+            console.log(`❌ Failed with URL ${siteUrl}: ${urlError.message}`);
+          }
+        }
+        
+        if (!siteResponse) {
+          throw new Error('Could not connect to any SharePoint site');
+        }
+      }
+      
+      if (!siteResponse) {
+        throw new Error('Could not find any SharePoint site');
+      }
+      
+      console.log(`✅ Using site: ${siteResponse.displayName}`);
       
       // Get documents from the site's document library
       const documentsEndpoint = `/sites/${siteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc&$expand=children($top=5)`;
