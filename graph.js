@@ -54,72 +54,64 @@
   // Get recent documents from specific SharePoint site
   async getRecentDocuments() {
     try {
-      // Try multiple approaches to find the SharePoint site
       console.log(`🎯 Attempting to connect to SharePoint...`);
       
-      // First, try to get all sites to see what's available
+      // Skip site enumeration and try direct access to root SharePoint
       let siteResponse = null;
       
-      try {
-        console.log(`🔍 Step 1: Getting all available sites...`);
-        const allSitesResponse = await this.request('/sites?$top=10');
-        console.log(`📋 Found ${allSitesResponse.value?.length || 0} sites available`);
-        
-        if (allSitesResponse.value && allSitesResponse.value.length > 0) {
-          console.log(`📋 Available sites:`);
-          allSitesResponse.value.forEach((site, i) => {
-            console.log(`  ${i + 1}. ${site.displayName} - ${site.webUrl}`);
-          });
+      // Try different approaches in order of preference
+      const approaches = [
+        {
+          name: 'Root SharePoint site',
+          endpoint: '/sites/root'
+        },
+        {
+          name: 'Default drive',
+          endpoint: '/me/drive',
+          isUserDrive: true
+        },
+        {
+          name: 'Specific JonoJohno site',
+          endpoint: '/sites/jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff'
+        },
+        {
+          name: 'Alternative JonoJohno site',
+          endpoint: '/sites/jonoandjohno.sharepoint.com:/sites/JonoAndJohno-allstaff'
+        }
+      ];
+      
+      for (const approach of approaches) {
+        try {
+          console.log(`🔄 Trying approach: ${approach.name}`);
           
-          // Look for JonoJohno site
-          const targetSite = allSitesResponse.value.find(site => 
-            site.displayName?.toLowerCase().includes('jono') || 
-            site.webUrl?.toLowerCase().includes('jono') ||
-            site.webUrl?.toLowerCase().includes('allstaff')
-          );
-          
-          if (targetSite) {
-            console.log(`✅ Found target site: ${targetSite.displayName}`);
-            siteResponse = targetSite;
+          if (approach.isUserDrive) {
+            // For user drive, get drive directly
+            const driveResponse = await this.request(approach.endpoint);
+            console.log(`✅ Connected to user drive: ${driveResponse.name || 'OneDrive'}`);
+            
+            // Get recent files from user's OneDrive
+            const recentEndpoint = '/me/drive/recent';
+            const recentResponse = await this.request(recentEndpoint);
+            console.log(`📄 Found ${recentResponse.value?.length || 0} recent files in OneDrive`);
+            return recentResponse;
+            
           } else {
-            console.log(`⚠️ No JonoJohno site found, using first available site: ${allSitesResponse.value[0].displayName}`);
-            siteResponse = allSitesResponse.value[0];
-          }
-        } else {
-          throw new Error('No sites found');
-        }
-      } catch (sitesError) {
-        console.log(`❌ Couldn't get sites list: ${sitesError.message}`);
-        
-        // Fallback: Try specific site URL formats
-        const siteUrls = [
-          'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff',
-          'jonoandjohno.sharepoint.com,80ee117e-949a-4cc2-9d56-b0c4923a47f2,c9a6ce8e-ff75-4451-8666-7c4f5ee30d34',
-          'jonoandjohno.sharepoint.com:/sites/JonoAndJohno-allstaff'
-        ];
-        
-        for (const siteUrl of siteUrls) {
-          try {
-            console.log(`🔄 Trying site URL: ${siteUrl}`);
-            const siteEndpoint = `/sites/${siteUrl}`;
-            siteResponse = await this.request(siteEndpoint);
-            console.log(`✅ Successfully connected to: ${siteResponse.displayName}`);
+            // For SharePoint sites
+            siteResponse = await this.request(approach.endpoint);
+            console.log(`✅ Connected to site: ${siteResponse.displayName || siteResponse.name}`);
             break;
-          } catch (urlError) {
-            console.log(`❌ Failed with URL ${siteUrl}: ${urlError.message}`);
           }
-        }
-        
-        if (!siteResponse) {
-          throw new Error('Could not connect to any SharePoint site');
+          
+        } catch (error) {
+          console.log(`❌ ${approach.name} failed: ${error.message}`);
         }
       }
       
       if (!siteResponse) {
-        throw new Error('Could not find any SharePoint site');
+        throw new Error('Could not connect to any SharePoint site or OneDrive');
       }
       
-      console.log(`✅ Using site: ${siteResponse.displayName}`);
+      console.log(`✅ Using SharePoint site: ${siteResponse.displayName}`);
       
       // Get documents from the site's document library
       const documentsEndpoint = `/sites/${siteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc&$expand=children($top=5)`;
