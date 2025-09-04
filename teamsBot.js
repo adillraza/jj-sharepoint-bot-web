@@ -12,12 +12,17 @@ class SharePointBot extends TeamsActivityHandler {
     constructor(conversationState, mainDialog) {
         super();
         
+        console.log('🔍 SharePointBot constructor - Starting...');
+        console.log('🔍 SharePointBot constructor - mainDialog:', mainDialog ? 'PROVIDED' : 'MISSING');
+        
         this.conversationState = conversationState;
         this.dialogState = this.conversationState.createProperty("DialogState");
         
         // Host the dialog
         this.dialogs = new DialogSet(this.dialogState);
         this.dialogs.add(mainDialog);
+        
+        console.log('✅ SharePointBot constructor - Dialog added successfully');
 
         this.onMembersAdded(async (context, next) => {
             const membersAdded = context.activity.membersAdded || [];

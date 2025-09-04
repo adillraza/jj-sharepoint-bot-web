@@ -46,8 +46,13 @@ const memoryStorage = new MemoryStorage();
 const conversationState = new ConversationState(memoryStorage);
 
 // Dialog & Bot
+console.log('🔍 Creating MainDialog...');
 const mainDialog = new MainDialog();
+console.log('✅ MainDialog created successfully');
+
+console.log('🔍 Creating SharePointBot...');
 const bot = new SharePointBot(conversationState, mainDialog);
+console.log('✅ SharePointBot created successfully');
 
 // Catch-all for errors
 adapter.onTurnError = async (context, error) => {
