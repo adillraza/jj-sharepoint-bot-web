@@ -1,17 +1,17 @@
   // graph.js - SharePoint Document Reader
   const axios = require('axios');
-  const { ManagedIdentityAuth } = require('./auth');
+  const { BotAppAuth } = require('./auth');
   
   class SharePointGraphClient {
     constructor(accessToken = null) {
       this.accessToken = accessToken;
       this.baseURL = 'https://graph.microsoft.com/v1.0';
-      this.auth = new ManagedIdentityAuth();
+      this.auth = new BotAppAuth();
     }
   
     async ensureToken() {
       if (!this.accessToken || this.accessToken === 'TEST_MODE') {
-        console.log('🔄 Using Managed Identity to get access token...');
+        console.log('🔄 Using Bot App Registration to get access token...');
         this.accessToken = await this.auth.getAccessToken();
       }
       return this.accessToken;

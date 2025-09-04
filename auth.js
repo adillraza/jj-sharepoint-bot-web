@@ -1,41 +1,40 @@
-// auth.js - Azure Managed Identity Authentication
-const { DefaultAzureCredential } = require('@azure/identity');
+// auth.js - Bot App Registration Authentication
+const { Client } = require('@azure/msal-node');
+const axios = require('axios');
 
-class ManagedIdentityAuth {
+class BotAppAuth {
     constructor() {
-        this.credential = new DefaultAzureCredential();
-        this.graphScope = 'https://graph.microsoft.com/.default';
+        this.clientId = process.env.MicrosoftAppId;
+        this.clientSecret = process.env.MicrosoftAppPassword;
+        this.tenantId = process.env.MicrosoftAppTenantId;
+        this.scope = 'https://graph.microsoft.com/.default';
     }
 
     async getAccessToken() {
         try {
-            console.log('🔐 Getting access token using Managed Identity...');
-            const tokenResponse = await this.credential.getToken(this.graphScope);
-            console.log('✅ Access token obtained successfully');
-            return tokenResponse.token;
+            console.log('🔐 Getting access token using Bot App Registration...');
+            
+            const tokenUrl = `https://login.microsoftonline.com/${this.tenantId}/oauth2/v2.0/token`;
+            const params = new URLSearchParams();
+            params.append('client_id', this.clientId);
+            params.append('client_secret', this.clientSecret);
+            params.append('scope', this.scope);
+            params.append('grant_type', 'client_credentials');
+
+            const response = await axios.post(tokenUrl, params, {
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+
+            console.log('✅ Access token obtained successfully using Bot App Registration');
+            return response.data.access_token;
         } catch (error) {
-            console.error('❌ Failed to get access token:', error);
+            console.error('❌ Failed to get access token:', error.response?.data || error.message);
             throw error;
         }
     }
 
-    // Fallback to client credentials for development
-    async getAccessTokenFallback() {
-        const { Client } = require('@microsoft/microsoft-graph-client');
-        const { TokenCredentialAuthenticationProvider } = require('@microsoft/microsoft-graph-client/authProviders/azureTokenCredentials');
-        
-        try {
-            const authProvider = new TokenCredentialAuthenticationProvider(this.credential, {
-                scopes: [this.graphScope]
-            });
-            
-            const graphClient = Client.initWithMiddleware({ authProvider });
-            return graphClient;
-        } catch (error) {
-            console.error('❌ Fallback authentication failed:', error);
-            throw error;
-        }
-    }
 }
 
-module.exports = { ManagedIdentityAuth };
+module.exports = { BotAppAuth };

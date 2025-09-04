@@ -184,19 +184,20 @@ Type \`help\` to see all available commands!
             return;
         }
 
-                 // TEST MODE: Managed Identity without Graph permissions
-         console.log('🧪 Test Mode: Managed Identity without Graph permissions...');
+                 // Using Bot App Registration for Graph API access
+         console.log('🔄 Using Bot App Registration for Graph API access...');
          
-         const graphClient = new SharePointGraphClient('TEST_MODE');
+         const graphClient = new SharePointGraphClient();
          
-         await context.sendActivity('🧪 **Test Mode Active**\n\n' +
-             '✅ **Managed Identity is configured**\n' +
-             '⚠️ **Waiting for admin to grant Graph permissions**\n\n' +
+         await context.sendActivity('🚀 **SharePoint Bot Ready!**\n\n' +
+             '✅ **Bot App Registration configured**\n' +
+             '✅ **Graph permissions granted**\n\n' +
              '📋 **Available commands:**\n' +
-             '• `recent` - Test Graph API call (will show permission error)\n' +
-             '• `search [keyword]` - Test search (simulated)\n' +
-             '• `help` - Show all commands\n\n' +
-             '💡 **Next step**: Ask your admin to grant Microsoft Graph permissions.');
+             '• `recent` - See your recent SharePoint files\n' +
+             '• `search [keyword]` - Search documents\n' +
+             '• `help` - Show all commands\n' +
+             '• Ask questions about your documents!\n\n' +
+             '💡 **Try**: `recent` to see your SharePoint documents');
 
         // Recent documents
         if (lowerText === 'recent' || lowerText === 'recent files') {
@@ -214,16 +215,8 @@ Type \`help\` to see all available commands!
                     await context.sendActivity('📁 No recent documents found.');
                 }
             } catch (error) {
-                console.error('Graph API Error (expected):', error.message);
-                if (error.message.includes('403') || error.message.includes('Forbidden')) {
-                    await context.sendActivity('🔒 **Permission Error (Expected)**\n\n' +
-                        '❌ **Error**: Insufficient privileges to access Microsoft Graph\n\n' +
-                        '✅ **Good news**: Managed Identity is working!\n' +
-                        '⚠️ **Issue**: Missing Graph permissions\n\n' +
-                        '💡 **Solution**: Ask your admin to run the PowerShell script to grant permissions.');
-                } else {
-                    await context.sendActivity(`❌ **Unexpected Error**: ${error.message}\n\nThis might indicate a different configuration issue.`);
-                }
+                console.error('Graph API Error:', error.message);
+                await context.sendActivity(`❌ **Error accessing SharePoint**: ${error.message}\n\n💡 **Try**: \`help\` for available commands`);
             }
             return;
         }
