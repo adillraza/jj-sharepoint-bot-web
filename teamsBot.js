@@ -316,24 +316,48 @@ class SharePointBot extends TeamsActivityHandler {
             // Log debug info (not sent to user)
             console.log(`📋 Found ${recentDocs.value.length} documents in SharePoint. Searching through first ${Math.min(maxDocsToSearch, recentDocs.value.length)}...`);
 
-            // Smart document selection: prioritize documents that match question keywords
-            const questionKeywords = question.toLowerCase().split(' ').filter(word => word.length > 3);
-            const scoredDocs = recentDocs.value.map(doc => {
-                const nameScore = questionKeywords.filter(keyword => 
-                    doc.name.toLowerCase().includes(keyword)
-                ).length;
-                return { doc, score: nameScore };
-            });
+            // SPECIFIC document targeting: if user mentions a filename, search that file specifically
+            const questionLower = question.toLowerCase();
+            let targetDoc = null;
             
-            // Sort by relevance, then by date
-            scoredDocs.sort((a, b) => {
-                if (a.score !== b.score) return b.score - a.score; // Higher score first
-                return new Date(b.doc.lastModifiedDateTime) - new Date(a.doc.lastModifiedDateTime); // Newer first
-            });
+            // Check if user is asking about a specific file
+            for (const doc of recentDocs.value) {
+                const fileName = doc.name.toLowerCase();
+                const fileNameWithoutExt = fileName.substring(0, fileName.lastIndexOf('.'));
+                
+                if (questionLower.includes(fileName) || questionLower.includes(fileNameWithoutExt)) {
+                    targetDoc = doc;
+                    console.log(`🎯 DIRECT FILE MATCH: User asking about "${doc.name}"`);
+                    break;
+                }
+            }
             
-            console.log(`🎯 Document relevance scores:`, scoredDocs.map(sd => `${sd.doc.name}: ${sd.score}`).join(', '));
+            let docsToSearch = [];
+            if (targetDoc) {
+                // User asked about specific file - search ONLY that file
+                docsToSearch = [targetDoc];
+                console.log(`📄 Searching ONLY the requested file: ${targetDoc.name}`);
+            } else {
+                // General question - use smart document selection
+                const questionKeywords = question.toLowerCase().split(' ').filter(word => word.length > 3);
+                const scoredDocs = recentDocs.value.map(doc => {
+                    const nameScore = questionKeywords.filter(keyword => 
+                        doc.name.toLowerCase().includes(keyword)
+                    ).length;
+                    return { doc, score: nameScore };
+                });
+                
+                // Sort by relevance, then by date
+                scoredDocs.sort((a, b) => {
+                    if (a.score !== b.score) return b.score - a.score; // Higher score first
+                    return new Date(b.doc.lastModifiedDateTime) - new Date(a.doc.lastModifiedDateTime); // Newer first
+                });
+                
+                console.log(`🎯 Document relevance scores:`, scoredDocs.map(sd => `${sd.doc.name}: ${sd.score}`).join(', '));
+                docsToSearch = scoredDocs.slice(0, maxDocsToSearch).map(sd => sd.doc);
+            }
             
-            for (const {doc} of scoredDocs.slice(0, maxDocsToSearch)) {
+            for (const doc of docsToSearch) {
                 try {
                     console.log(`📄 Checking document: ${doc.name}`);
                     
@@ -376,12 +400,19 @@ class SharePointBot extends TeamsActivityHandler {
                                     if (buffer) {
                                         content = await docProcessor.extractTextFromDocument(buffer, doc.file.mimeType, doc.name);
                                         if (content && content.length > 10) {
-                                            console.log(`✅ Binary extraction successful: ${content.length} characters`);
+                                            console.log(`✅ Binary extraction successful: ${content.length} characters from ${doc.name}`);
+                                            console.log(`📄 Content preview: ${content.substring(0, 200)}...`);
+                                            
                                             const answer = await docProcessor.answerQuestion(question, content, doc.name);
+                                            console.log(`🎯 Answer from ${doc.name}: confidence=${answer.confidence}, answer="${answer.answer?.substring(0, 100)}..."`);
+                                            
                                             if (answer.confidence > 0.1 && (!bestAnswer || answer.confidence > bestAnswer.confidence)) {
                                                 bestAnswer = answer;
+                                                console.log(`🏆 NEW BEST ANSWER from ${doc.name} with confidence ${answer.confidence}`);
                                             }
                                             searchedDocs++;
+                                        } else {
+                                            console.log(`❌ Binary extraction failed for ${doc.name} - content length: ${content?.length || 0}`);
                                         }
                                     }
                                 } catch (binaryError) {
@@ -406,11 +437,19 @@ class SharePointBot extends TeamsActivityHandler {
 
             if (bestAnswer && bestAnswer.confidence > 0.1) {
                 try {
+                    // If user asked about specific file, confirm we searched the right file
+                    let responseText = bestAnswer.answer;
+                    if (targetDoc && bestAnswer.documentName === targetDoc.name) {
+                        responseText = `📄 **From ${targetDoc.name}:**\n\n${bestAnswer.answer}`;
+                    } else if (targetDoc) {
+                        responseText = `⚠️ **Note:** You asked about "${targetDoc.name}" but I found relevant information in "${bestAnswer.documentName}":\n\n${bestAnswer.answer}`;
+                    }
+                    
                     await context.sendActivity(
-                        `${bestAnswer.answer}\n\n` +
+                        `${responseText}\n\n` +
                         `📁 *Source: ${bestAnswer.documentName}*`
                     );
-                    console.log(`✅ Successfully sent answer to user`);
+                    console.log(`✅ Successfully sent answer to user from ${bestAnswer.documentName}`);
                 } catch (sendError) {
                     console.error(`❌ Failed to send answer to user:`, sendError);
                     await context.sendActivity(`✅ I found an answer but had trouble sending it. Please try asking again.`);
