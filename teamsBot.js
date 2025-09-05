@@ -372,8 +372,14 @@ class SharePointBot extends TeamsActivityHandler {
                         console.log(`📥 Attempting to get content for: ${doc.name}`);
                         console.log(`📊 File details: size=${doc.size}, mimeType=${doc.file?.mimeType || 'unknown'}`);
                         
-                        // Try to get content as text first (works for many file types)
+                        // EMERGENCY DEBUG: What are we actually getting?
                         let content = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, false);
+                        
+                        console.log(`🔍 EMERGENCY DEBUG for ${doc.name}:`);
+                        console.log(`   - Content type: ${typeof content}`);
+                        console.log(`   - Content length: ${content?.length || 0}`);
+                        console.log(`   - Is string: ${typeof content === 'string'}`);
+                        console.log(`   - First 100 chars: ${content ? String(content).substring(0, 100) : 'NULL'}`);
                         
                         if (content && typeof content === 'string' && content.length > 10) {
                             console.log(`✅ Got ${content.length} characters from ${doc.name}`);
@@ -435,6 +441,21 @@ class SharePointBot extends TeamsActivityHandler {
                 console.log(`🏆 Best answer confidence: ${bestAnswer.confidence} from ${bestAnswer.documentName}`);
             }
 
+            // EMERGENCY FALLBACK: If no content extracted, give helpful response
+            if (!bestAnswer && searchedDocs === 0) {
+                const targetFileName = targetDoc ? targetDoc.name : 'the requested document';
+                await context.sendActivity(
+                    `❌ **I'm having trouble reading document content right now.**\n\n` +
+                    `📋 **I can see these documents in SharePoint:**\n${recentDocs.value.map(doc => `• ${doc.name} (${doc.file?.mimeType || 'unknown type'})`).join('\n')}\n\n` +
+                    `🔧 **This might be due to:**\n` +
+                    `• Document format limitations\n` +
+                    `• Permission restrictions\n` +
+                    `• File size limitations\n\n` +
+                    `💡 **Try asking:** "recent" to see all available files, or ask about a different document.`
+                );
+                return;
+            }
+            
             if (bestAnswer && bestAnswer.confidence > 0.1) {
                 try {
                     // If user asked about specific file, confirm we searched the right file
