@@ -26,8 +26,7 @@ class SharePointBot extends TeamsActivityHandler {
             const membersAdded = context.activity.membersAdded || [];
             for (const member of membersAdded) {
                 if (member.id !== context.activity.recipient.id) {
-                    const welcomeText = `
-👋 **Welcome to SharePoint Document Assistant!**
+                    const welcomeText = `👋 **Welcome to SharePoint Document Assistant!**
 
 **💬 What I can do:**
 • Find and read your SharePoint documents
@@ -49,8 +48,7 @@ class SharePointBot extends TeamsActivityHandler {
 • "Show me recent Excel files"
 • "How is the weather today?"
 
-**Just ask me anything!** 📦 *${this.deploymentId}*
-                    `;
+**Just ask me anything!** 📦 *${this.deploymentId}*`;
                     await context.sendActivity(welcomeText);
                 }
             }
@@ -296,25 +294,9 @@ class SharePointBot extends TeamsActivityHandler {
             console.log('🔍 Getting ALL documents for comprehensive Q&A...');
             let recentDocs;
             
-            try {
-                // Try the new OnlineCustomerServiceTeam859 site first
-                const siteUrl = 'jonoandjohno.sharepoint.com:/sites/OnlineCustomerServiceTeam859';
-                const siteResponse = await graphClient.request(`/sites/${siteUrl}`);
-                const allItems = await graphClient.getAllItemsRecursively(siteResponse.id);
-                const allFiles = allItems.filter(item => item.file && !item.folder);
-                
-                if (allFiles.length === 0) {
-                    console.log('⚠️ No files found in OnlineCustomerServiceTeam859, trying fallback...');
-                    // Fallback to old method if new site is empty
-                    recentDocs = await graphClient.getRecentDocuments();
-                } else {
-                    recentDocs = { value: allFiles.slice(0, 20) };
-                }
-            } catch (error) {
-                console.log('⚠️ Error accessing OnlineCustomerServiceTeam859, using fallback:', error.message);
-                // Fallback to old method
-                recentDocs = await graphClient.getRecentDocuments();
-            }
+            // Use the working method that we know works
+            console.log('🔄 Using proven document retrieval method...');
+            recentDocs = await graphClient.getRecentDocuments();
             
             if (!recentDocs.value || recentDocs.value.length === 0) {
                 await context.sendActivity('📂 I couldn\'t find any recent documents to search through. Try uploading some documents to SharePoint first.');
@@ -331,8 +313,8 @@ class SharePointBot extends TeamsActivityHandler {
             console.log(`📋 Total documents found: ${recentDocs.value.length}`);
             console.log(`📋 Documents: ${docNames}`);
             
-            // Send debug info to user
-            await context.sendActivity(`📋 Found ${recentDocs.value.length} documents in SharePoint. Searching through first ${Math.min(maxDocsToSearch, recentDocs.value.length)}...`);
+            // Log debug info (not sent to user)
+            console.log(`📋 Found ${recentDocs.value.length} documents in SharePoint. Searching through first ${Math.min(maxDocsToSearch, recentDocs.value.length)}...`);
 
             // Smart document selection: prioritize documents that match question keywords
             const questionKeywords = question.toLowerCase().split(' ').filter(word => word.length > 3);
@@ -392,7 +374,7 @@ class SharePointBot extends TeamsActivityHandler {
                                 try {
                                     const buffer = await graphClient.getDocumentContent(doc.parentReference.driveId, doc.id, true);
                                     if (buffer) {
-                                        content = await docProcessor.extractContent(buffer, doc.name);
+                                        content = await docProcessor.extractTextFromDocument(buffer, doc.file.mimeType, doc.name);
                                         if (content && content.length > 10) {
                                             console.log(`✅ Binary extraction successful: ${content.length} characters`);
                                             const answer = await docProcessor.answerQuestion(question, content, doc.name);
