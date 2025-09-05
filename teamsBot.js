@@ -31,21 +31,12 @@ class SharePointBot extends TeamsActivityHandler {
                     const welcomeText = `
 👋 **Welcome to SharePoint Document Assistant!**
 
-I can help you find and read your SharePoint documents. Try these commands:
+I can help you with:
+• 🔍 Finding and reading your SharePoint documents
+• 🤖 Answering questions about your files
+• 💬 General questions (like ChatGPT)
 
-📋 **Get Started:**
-• \`help\` - Show all commands
-• \`signin\` - Connect to Microsoft 365
-
-🔍 **Find Documents:**
-• \`recent\` - Your recent files
-• \`search [keyword]\` - Find documents
-
-❓ **Ask Questions:**
-• "What's in the project plan?"
-• "Show me Excel files"
-
-Type \`help\` to see all available commands!
+**Quick start:** Type \`recent\` to see your files or just ask me anything!
                     `;
                     await context.sendActivity(welcomeText);
                 }
@@ -139,35 +130,24 @@ Type \`help\` to see all available commands!
         // Help command
         if (lowerText === 'help' || lowerText === 'commands') {
             const helpText = `
-**🤖 AI-Powered SharePoint Assistant:**
+**🤖 SharePoint AI Assistant**
 
-**💬 General AI Chat:**
-• Ask me anything! (like ChatGPT)
-• "How is the weather?"
-• "Explain quantum physics"
-• "Help me write an email"
+**💬 Ask me anything:**
+• General questions (like ChatGPT)
+• Questions about your SharePoint documents
 
-**📁 SharePoint Documents:**
+**📁 Commands:**
 • \`recent\` - Show recent documents
-• \`search [query]\` - Search SharePoint documents
-• \`summarize [document]\` - Get AI summary
-• \`insights [document]\` - Get AI insights
+• \`search [keyword]\` - Find documents
+• \`summarize [document]\` - AI summary
+• \`insights [document]\` - AI insights
 
-**❓ Document Q&A Examples:**
-• "What is in the price changes document?"
-• "What are the key deadlines?"
-• "Who are the contacts mentioned?"
-• "Summarize the policies and procedures"
+**Examples:**
+• "How is the weather?"
+• "What's in the project plan document?"
+• "Show me recent Excel files"
 
-**🔧 System:**
-• \`test\` - Check bot functionality
-• \`logout\` - Sign out from Microsoft 365
-
-**🚀 I'm powered by Azure OpenAI and can:**
-✅ Answer general questions (like ChatGPT)
-✅ Analyze your SharePoint documents
-✅ Provide intelligent insights and summaries
-✅ Recognize patterns (dates, money, contacts)
+💡 **Just ask me anything!**
             `;
             
             await context.sendActivity(helpText);
@@ -381,12 +361,8 @@ Type \`help\` to see all available commands!
             if (bestAnswer && bestAnswer.confidence > 0.1) {
                 try {
                     await context.sendActivity(
-                        `🎯 **Here's what I found:**\n\n` +
                         `${bestAnswer.answer}\n\n` +
-                        `📊 **Confidence:** ${Math.round(bestAnswer.confidence * 100)}%\n` +
-                        `📁 **Source:** ${bestAnswer.documentName}\n` +
-                        `🔍 *Searched ${searchedDocs} documents*\n\n` +
-                        `💡 **Want to know more?** Ask me another question about your documents!`
+                        `📁 *Source: ${bestAnswer.documentName}*`
                     );
                     console.log(`✅ Successfully sent answer to user`);
                 } catch (sendError) {
@@ -568,33 +544,18 @@ Type \`help\` to see all available commands!
             ]);
             
             if (response && response.answer) {
-                await context.sendActivity(
-                    `🤖 **${response.answer}**\n\n` +
-                    `💡 *I can also search your SharePoint documents if you have questions about your files!*\n\n` +
-                    `📋 **Try commands like:**\n` +
-                    `• \`recent\` - See your recent files\n` +
-                    `• \`summarize [document]\` - AI summary\n` +
-                    `• Ask about your documents: "What's in the price changes file?"`
-                );
+                await context.sendActivity(response.answer);
             } else {
-                await context.sendActivity(
-                    `🤔 I'm having trouble answering that question right now.\n\n` +
-                    `💡 **I can help you with:**\n` +
-                    `• General questions (like ChatGPT)\n` +
-                    `• Your SharePoint documents\n` +
-                    `• Document analysis and insights\n\n` +
-                    `Try asking something else!`
-                );
+                await context.sendActivity(`🤔 I couldn't find an answer to that question. Try asking something else!`);
             }
             
         } catch (error) {
             console.error('❌ General question error:', error);
-            await context.sendActivity(
-                `❌ Sorry, I encountered an error answering your question.\n\n` +
-                `💡 **I can still help you with:**\n` +
-                `• \`recent\` - See your SharePoint files\n` +
-                `• \`help\` - See all commands`
-            );
+            if (error.message === 'Timeout') {
+                await context.sendActivity(`⏱️ That question is taking too long to process. Try asking something simpler.`);
+            } else {
+                await context.sendActivity(`❌ Sorry, I couldn't answer that question right now. Please try again.`);
+            }
         }
     }
 }
