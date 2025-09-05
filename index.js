@@ -9,17 +9,14 @@ const MICROSOFT_APP_ID = process.env.MicrosoftAppId || process.env.MicrosoftAppi
 const MICROSOFT_APP_PASSWORD = process.env.MicrosoftAppPassword || process.env.MicrosoftApppassword || "";
 const CONNECTION_NAME = process.env.ConnectionName || "GraphConnection";
 
-console.log('🔥🔥🔥 CACHE CLEARED - FRESH CODE v3.0 🔥🔥🔥');
-console.log(`🚀 DEPLOYMENT TIMESTAMP: ${new Date().toISOString()}`);
-console.log(`🆔 CACHE BUSTER ID: CLEAR-${Date.now()}`);
-console.log(`Node.js version: ${process.version}`);
-console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
-console.log(`MicrosoftAppId present: ${MICROSOFT_APP_ID ? 'YES' : 'NO'}`);
-console.log(`MicrosoftAppId value: ${MICROSOFT_APP_ID ? MICROSOFT_APP_ID.substring(0, 8) + '...' : 'EMPTY'}`);
-console.log(`MicrosoftAppPassword present: ${MICROSOFT_APP_PASSWORD ? 'YES' : 'NO'}`);
-console.log(`ConnectionName: ${CONNECTION_NAME}`);
-console.log(`All Microsoft env vars:`, Object.keys(process.env).filter(k => k.toLowerCase().includes('microsoft')));
-console.log('🔥🔥🔥 END FRESH CODE v3.0 🔥🔥🔥');
+// Generate deployment ID from current timestamp
+const DEPLOYMENT_ID = `v${new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '')}`; // e.g., v20250105T1430
+
+console.log('🚀 ===== SHAREPOINT BOT STARTUP =====');
+console.log(`📦 DEPLOYMENT: ${DEPLOYMENT_ID}`);
+console.log(`🕐 Started: ${new Date().toLocaleString()}`);
+console.log(`✅ Credentials: ${MICROSOFT_APP_ID ? 'LOADED' : 'MISSING'}`);
+console.log('🚀 ===================================');
 
 // Create adapter with explicit validation
 if (!MICROSOFT_APP_ID || !MICROSOFT_APP_PASSWORD) {
@@ -37,11 +34,7 @@ const adapter = new BotFrameworkAdapter({
     oAuthEndpoint: 'https://login.microsoftonline.com/botframework.com/oauth2/v2.0/token'
 });
 
-// Log adapter configuration
-console.log('✅ Adapter created with valid credentials:');
-console.log(`- appId: ${MICROSOFT_APP_ID.substring(0, 8)}...`);
-console.log(`- appPassword: ${MICROSOFT_APP_PASSWORD.substring(0, 8)}...`);
-console.log('===================');
+console.log(`✅ Bot Framework Adapter initialized`);
 
 // State management
 const memoryStorage = new MemoryStorage();
@@ -53,7 +46,7 @@ const mainDialog = new MainDialog();
 console.log('✅ MainDialog created successfully');
 
 console.log('🔍 Creating SharePointBot...');
-const bot = new SharePointBot(conversationState, mainDialog);
+const bot = new SharePointBot(conversationState, mainDialog, DEPLOYMENT_ID);
 console.log('✅ SharePointBot created successfully');
 
 // Catch-all for errors

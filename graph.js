@@ -74,8 +74,8 @@
         console.log(`❌ Root site access failed: ${rootError.message}`);
       }
       
-      // Try the specific JonoJohno site
-      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff';
+      // Try the specific OnlineCustomerServiceTeam site
+      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/OnlineCustomerServiceTeam859';
       console.log(`🔄 Step 2: Targeting specific site: ${siteUrl}`);
       
       const siteEndpoint = `/sites/${siteUrl}`;
@@ -116,12 +116,12 @@
       return { value: allFiles };
       
     } catch (error) {
-      console.error('Error getting documents from JonoJohno-allstaff site:', error.message);
+      console.error('Error getting documents from OnlineCustomerServiceTeam859 site:', error.message);
       
       // Fallback: try alternative site URL format
       try {
         console.log('🔄 Trying alternative site URL format...');
-        const altSiteEndpoint = '/sites/jonoandjohno.sharepoint.com,/sites/JonoJohno-allstaff';
+        const altSiteEndpoint = '/sites/jonoandjohno.sharepoint.com,/sites/OnlineCustomerServiceTeam859';
         const altSiteResponse = await this.request(altSiteEndpoint);
         
         const documentsEndpoint = `/sites/${altSiteResponse.id}/drive/root/children?$top=20&$orderby=lastModifiedDateTime desc`;
@@ -182,11 +182,11 @@
     }
   }
 
-  // Search documents in the JonoJohno-allstaff site
+  // Search documents in the OnlineCustomerServiceTeam859 site
   async searchDocumentsInSite(query) {
     try {
-      // Target the specific JonoJohno-allstaff site
-      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/JonoJohno-allstaff';
+      // Target the specific OnlineCustomerServiceTeam859 site
+      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/OnlineCustomerServiceTeam859';
       console.log(`🔍 Searching in site: ${siteUrl} for query: "${query}"`);
       
       // Get the specific site
@@ -210,6 +210,102 @@
   async getDocumentMetadata(driveId, itemId) {
     const endpoint = `/drives/${driveId}/items/${itemId}`;
     return await this.request(endpoint);
+  }
+
+  // Get comprehensive site statistics
+  async getSiteStatistics() {
+    try {
+      const siteUrl = 'jonoandjohno.sharepoint.com:/sites/OnlineCustomerServiceTeam859';
+      console.log(`📊 Getting statistics for site: ${siteUrl}`);
+      
+      // Get the site
+      const siteEndpoint = `/sites/${siteUrl}`;
+      const siteResponse = await this.request(siteEndpoint);
+      
+      // Get all items recursively
+      const allItems = await this.getAllItemsRecursively(siteResponse.id);
+      
+      // Analyze the items
+      const stats = this.analyzeItems(allItems);
+      
+      return stats;
+    } catch (error) {
+      console.error('Error getting site statistics:', error);
+      throw error;
+    }
+  }
+
+  // Recursively get all items from all folders
+  async getAllItemsRecursively(siteId, folderId = 'root', allItems = []) {
+    try {
+      const endpoint = `/sites/${siteId}/drive/${folderId}/children?$top=999`;
+      const response = await this.request(endpoint);
+      
+      for (const item of response.value || []) {
+        allItems.push(item);
+        
+        // If it's a folder, recursively get its contents
+        if (item.folder) {
+          await this.getAllItemsRecursively(siteId, item.id, allItems);
+        }
+      }
+      
+      return allItems;
+    } catch (error) {
+      console.error(`Error getting items from folder ${folderId}:`, error);
+      return allItems; // Return what we have so far
+    }
+  }
+
+  // Analyze items to generate statistics
+  analyzeItems(items) {
+    let folderCount = 0;
+    let fileCount = 0;
+    let totalSize = 0;
+    const fileTypes = {};
+    let lastModified = new Date(0);
+
+    for (const item of items) {
+      if (item.folder) {
+        folderCount++;
+      } else if (item.file) {
+        fileCount++;
+        totalSize += item.size || 0;
+        
+        // Track file types
+        const extension = item.name.split('.').pop()?.toLowerCase() || 'no extension';
+        fileTypes[extension] = (fileTypes[extension] || 0) + 1;
+        
+        // Track latest modification
+        const itemModified = new Date(item.lastModifiedDateTime);
+        if (itemModified > lastModified) {
+          lastModified = itemModified;
+        }
+      }
+    }
+
+    // Convert file types to sorted array
+    const fileTypesArray = Object.entries(fileTypes)
+      .map(([type, count]) => ({ type, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 10); // Top 10 file types
+
+    return {
+      folderCount,
+      fileCount,
+      totalSize: this.formatFileSize(totalSize),
+      lastModified: lastModified.toLocaleDateString(),
+      fileTypes: fileTypesArray
+    };
+  }
+
+  // Format file size in human-readable format
+  formatFileSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   }
 }
 

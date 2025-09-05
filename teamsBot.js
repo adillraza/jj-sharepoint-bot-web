@@ -9,11 +9,11 @@ const CLIENT_ID = process.env.MicrosoftAppId;
 const TENANT_ID = process.env.MicrosoftAppTenantId;
 
 class SharePointBot extends TeamsActivityHandler {
-    constructor(conversationState, mainDialog) {
+    constructor(conversationState, mainDialog, deploymentId) {
         super();
         
-        console.log('🔍 SharePointBot constructor - Starting...');
-        console.log('🔍 SharePointBot constructor - mainDialog:', mainDialog ? 'PROVIDED' : 'MISSING');
+        this.deploymentId = deploymentId || 'unknown';
+        console.log(`🤖 SharePointBot initialized - Deployment: ${this.deploymentId}`);
         
         this.conversationState = conversationState;
         this.dialogState = this.conversationState.createProperty("DialogState");
@@ -21,8 +21,6 @@ class SharePointBot extends TeamsActivityHandler {
         // Host the dialog
         this.dialogs = new DialogSet(this.dialogState);
         this.dialogs.add(mainDialog);
-        
-        console.log('✅ SharePointBot constructor - Dialog added successfully');
 
         this.onMembersAdded(async (context, next) => {
             const membersAdded = context.activity.membersAdded || [];
@@ -31,12 +29,27 @@ class SharePointBot extends TeamsActivityHandler {
                     const welcomeText = `
 👋 **Welcome to SharePoint Document Assistant!**
 
-I can help you with:
-• 🔍 Finding and reading your SharePoint documents
-• 🤖 Answering questions about your files
+**💬 What I can do:**
+• 🔍 Find and read your SharePoint documents
+• 🤖 Answer questions about your files  
 • 💬 General questions (like ChatGPT)
+• 📊 Analyze your entire SharePoint site
 
-**Quick start:** Type \`recent\` to see your files or just ask me anything!
+**📋 Available Commands:**
+• \`recent\` - Show recent documents
+• \`stats\` - Site statistics (files, folders, types)
+• \`search [keyword]\` - Find specific documents
+• \`summarize [document]\` - AI summary of any document
+• \`insights [document]\` - AI insights from documents
+• \`help\` - Show detailed help
+
+**🚀 Quick Examples:**
+• "How many files are in our SharePoint?"
+• "What's in the customer service document?"
+• "Show me recent Excel files"
+• "How is the weather today?"
+
+**Just ask me anything!** 📦 *${this.deploymentId}*
                     `;
                     await context.sendActivity(welcomeText);
                 }
@@ -77,7 +90,7 @@ I can help you with:
                     const token = await context.adapter.getUserToken(context, CONNECTION_NAME);
                     if (token?.token) {
                         await context.sendActivity(`🔐 **Token available**\n\nFirst 20 chars: ${token.token.substring(0, 20)}...\n\nYou can now use commands like \`recent\` or \`search\`.`);
-                    } else {
+                } else {
                         await context.sendActivity('❌ **No token found**\n\nType `signin` first to authenticate.');
                     }
                 } catch (error) {
@@ -138,6 +151,7 @@ I can help you with:
 
 **📁 Commands:**
 • \`recent\` - Show recent documents
+• \`stats\` - Site statistics (total files, folders, types)
 • \`search [keyword]\` - Find documents
 • \`summarize [document]\` - AI summary
 • \`insights [document]\` - AI insights
@@ -172,16 +186,27 @@ I can help you with:
          console.log('🔄 Using Bot App Registration for Graph API access...');
          
          const graphClient = new SharePointGraphClient();
-         
-         await context.sendActivity('🚀 **SharePoint Bot Ready!**\n\n' +
-             '✅ **Bot App Registration configured**\n' +
-             '✅ **Graph permissions granted**\n\n' +
-             '📋 **Available commands:**\n' +
-             '• `recent` - See your recent SharePoint files\n' +
-             '• `search [keyword]` - Search documents\n' +
-             '• `help` - Show all commands\n' +
-             '• Ask questions about your documents!\n\n' +
-             '💡 **Try**: `recent` to see your SharePoint documents');
+
+        // Site statistics command
+        if (lowerText === 'stats' || lowerText === 'statistics' || lowerText === 'site stats') {
+            try {
+                await context.sendActivity('📊 Analyzing SharePoint site...');
+                const stats = await graphClient.getSiteStatistics();
+                
+                await context.sendActivity(
+                    `📊 **SharePoint Site Statistics:**\n\n` +
+                    `📁 **Total Folders:** ${stats.folderCount}\n` +
+                    `📄 **Total Files:** ${stats.fileCount}\n` +
+                    `💾 **Total Size:** ${stats.totalSize}\n` +
+                    `📅 **Last Updated:** ${stats.lastModified}\n\n` +
+                    `🔍 **File Types:**\n${stats.fileTypes.map(ft => `• ${ft.type}: ${ft.count} files`).join('\n')}`
+                );
+            } catch (error) {
+                console.error('Error getting site statistics:', error);
+                await context.sendActivity('❌ Sorry, I couldn\'t retrieve site statistics at this time.');
+            }
+            return;
+        }
 
         // Recent documents
         if (lowerText === 'recent' || lowerText === 'recent files') {
@@ -269,8 +294,15 @@ I can help you with:
         try {
             console.log(`🤔 Processing question: "${question}"`);
             
-            // Get recent documents to search through
-            const recentDocs = await graphClient.getRecentDocuments();
+            // Get ALL documents from SharePoint for comprehensive search
+            console.log('🔍 Getting ALL documents for comprehensive Q&A...');
+            const siteUrl = 'jonoandjohno.sharepoint.com:/sites/OnlineCustomerServiceTeam859';
+            const siteResponse = await graphClient.request(`/sites/${siteUrl}`);
+            const allItems = await graphClient.getAllItemsRecursively(siteResponse.id);
+            
+            // Filter to only files (not folders) and limit for performance
+            const allFiles = allItems.filter(item => item.file && !item.folder);
+            const recentDocs = { value: allFiles.slice(0, 20) }; // Increased to 20 for better coverage
             
             if (!recentDocs.value || recentDocs.value.length === 0) {
                 await context.sendActivity('📂 I couldn\'t find any recent documents to search through. Try uploading some documents to SharePoint first.');
