@@ -30,10 +30,10 @@ class SharePointBot extends TeamsActivityHandler {
 👋 **Welcome to SharePoint Document Assistant!**
 
 **💬 What I can do:**
-• 🔍 Find and read your SharePoint documents
-• 🤖 Answer questions about your files  
-• 💬 General questions (like ChatGPT)
-• 📊 Analyze your entire SharePoint site
+• Find and read your SharePoint documents
+• Answer questions about your files  
+• General questions and AI assistance
+• Analyze your entire SharePoint site
 
 **📋 Available Commands:**
 • \`recent\` - Show recent documents
@@ -146,7 +146,7 @@ class SharePointBot extends TeamsActivityHandler {
 **🤖 SharePoint AI Assistant**
 
 **💬 Ask me anything:**
-• General questions (like ChatGPT)
+• General questions and AI assistance
 • Questions about your SharePoint documents
 
 **📁 Commands:**
@@ -275,10 +275,8 @@ class SharePointBot extends TeamsActivityHandler {
             const isSharePointRelated = this.isSharePointRelatedQuestion(text);
             
             if (isSharePointRelated) {
-                await context.sendActivity(`🔍 Let me search your SharePoint documents to answer: "${text}"`);
                 await this.handleDocumentQuestion(context, text, graphClient);
             } else {
-                await context.sendActivity(`🤖 Let me think about that...`);
                 await this.handleGeneralQuestion(context, text);
             }
         } catch (error) {
@@ -296,13 +294,27 @@ class SharePointBot extends TeamsActivityHandler {
             
             // Get ALL documents from SharePoint for comprehensive search
             console.log('🔍 Getting ALL documents for comprehensive Q&A...');
-            const siteUrl = 'jonoandjohno.sharepoint.com:/sites/OnlineCustomerServiceTeam859';
-            const siteResponse = await graphClient.request(`/sites/${siteUrl}`);
-            const allItems = await graphClient.getAllItemsRecursively(siteResponse.id);
+            let recentDocs;
             
-            // Filter to only files (not folders) and limit for performance
-            const allFiles = allItems.filter(item => item.file && !item.folder);
-            const recentDocs = { value: allFiles.slice(0, 20) }; // Increased to 20 for better coverage
+            try {
+                // Try the new OnlineCustomerServiceTeam859 site first
+                const siteUrl = 'jonoandjohno.sharepoint.com:/sites/OnlineCustomerServiceTeam859';
+                const siteResponse = await graphClient.request(`/sites/${siteUrl}`);
+                const allItems = await graphClient.getAllItemsRecursively(siteResponse.id);
+                const allFiles = allItems.filter(item => item.file && !item.folder);
+                
+                if (allFiles.length === 0) {
+                    console.log('⚠️ No files found in OnlineCustomerServiceTeam859, trying fallback...');
+                    // Fallback to old method if new site is empty
+                    recentDocs = await graphClient.getRecentDocuments();
+                } else {
+                    recentDocs = { value: allFiles.slice(0, 20) };
+                }
+            } catch (error) {
+                console.log('⚠️ Error accessing OnlineCustomerServiceTeam859, using fallback:', error.message);
+                // Fallback to old method
+                recentDocs = await graphClient.getRecentDocuments();
+            }
             
             if (!recentDocs.value || recentDocs.value.length === 0) {
                 await context.sendActivity('📂 I couldn\'t find any recent documents to search through. Try uploading some documents to SharePoint first.');
@@ -313,13 +325,33 @@ class SharePointBot extends TeamsActivityHandler {
                             let searchedDocs = 0;
                 const maxDocsToSearch = 2; // Reduce from 5 to 2 for F0 tier // Limit for performance
 
-            await context.sendActivity(`🔍 Searching through your recent documents...`);
             
             // Debug: Show what documents we found
             const docNames = recentDocs.value.map(doc => `${doc.name} (${doc.file?.mimeType || 'no mime type'})`).join(', ');
-            console.log(`📋 Documents found: ${docNames}`);
+            console.log(`📋 Total documents found: ${recentDocs.value.length}`);
+            console.log(`📋 Documents: ${docNames}`);
+            
+            // Send debug info to user
+            await context.sendActivity(`📋 Found ${recentDocs.value.length} documents in SharePoint. Searching through first ${Math.min(maxDocsToSearch, recentDocs.value.length)}...`);
 
-            for (const doc of recentDocs.value.slice(0, maxDocsToSearch)) {
+            // Smart document selection: prioritize documents that match question keywords
+            const questionKeywords = question.toLowerCase().split(' ').filter(word => word.length > 3);
+            const scoredDocs = recentDocs.value.map(doc => {
+                const nameScore = questionKeywords.filter(keyword => 
+                    doc.name.toLowerCase().includes(keyword)
+                ).length;
+                return { doc, score: nameScore };
+            });
+            
+            // Sort by relevance, then by date
+            scoredDocs.sort((a, b) => {
+                if (a.score !== b.score) return b.score - a.score; // Higher score first
+                return new Date(b.doc.lastModifiedDateTime) - new Date(a.doc.lastModifiedDateTime); // Newer first
+            });
+            
+            console.log(`🎯 Document relevance scores:`, scoredDocs.map(sd => `${sd.doc.name}: ${sd.score}`).join(', '));
+            
+            for (const {doc} of scoredDocs.slice(0, maxDocsToSearch)) {
                 try {
                     console.log(`📄 Checking document: ${doc.name}`);
                     
